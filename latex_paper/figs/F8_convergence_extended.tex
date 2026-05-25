@@ -1,0 +1,76 @@
+%% F8 — Design convergence across seismic scenarios
+%% Left: scatter N_d(median) vs N_d(P90) for 1,000 structures (with jitter)
+%% Right: agreement rate (%) by building height
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=2 by 1, horizontal sep=1.6cm},
+  width=0.505\linewidth, height=6.5cm,
+]
+
+%%──── Left panel: scatter N_median vs N_P90 ────────────────────────────────
+\nextgroupplot[
+  xlabel={Optimal $N_d$ — median scenario},
+  ylabel={Optimal $N_d$ — P90 scenario},
+  xmin=-0.5, xmax=21.5, ymin=-0.5, ymax=21.5,
+  colormap/viridis,
+  colorbar,
+  colorbar style={
+    ylabel={$n_p$ (stories)},
+    ytick={3,5,7,10,12,15,18,20},
+    width=5pt,
+  },
+  point meta min=3, point meta max=20,
+  title={1\,000 structures — overall agreement: 74.9\%},
+  title style={font=\small},
+]
+%% Scatter with jitter (colored by n_pisos)
+\addplot[
+  only marks, mark=*, mark size=1.0pt,
+  scatter, scatter src=explicit,
+  opacity=0.55,
+] table[x=N_median_j, y=N_p90_j, meta=n_pisos_first, col sep=comma]
+  {data/f8_scatter.csv};
+%% Identity line
+\addplot[thick, dashed, black!60, domain=-0.5:21.5, samples=2] {x};
+%% Annotation
+\node[anchor=north west, fill=white, fill opacity=0.85, text opacity=1,
+      draw=gray!50, inner sep=3pt, font=\scriptsize]
+  at (rel axis cs:0.04,0.96)
+  {Mean discrepancy: $0.51$ stories};
+
+%%──── Right panel: agreement rate by n_pisos (bar chart) ───────────────────
+\nextgroupplot[
+  title={Agreement rate by building height},
+  title style={font=\small},
+  xlabel={$n_p$ (number of stories)},
+  ylabel={Agreement rate: median $=$ P90 (\%)},
+  ybar,
+  bar width=10pt,
+  xtick={3,5,7,10,12,15,18,20},
+  xticklabels={3,5,7,10,12,15,18,20},
+  ymin=0, ymax=105,
+  ytick={0,20,40,60,80,100},
+  axis on top,
+  colormap/viridis,
+  point meta min=3, point meta max=20,
+  nodes near coords={\pgfmathprintnumber[fixed,precision=0]{\pgfplotspointmeta}\%},
+  nodes near coords style={font=\scriptsize},
+]
+\addplot[scatter, scatter src=explicit,
+         fill opacity=0.80, draw=none]
+  coordinates {
+    (3,  76.0)[3]
+    (5,  76.8)[5]
+    (7,  72.8)[7]
+    (10, 85.6)[10]
+    (12, 75.2)[12]
+    (15, 69.6)[15]
+    (18, 76.8)[18]
+    (20, 66.4)[20]
+  };
+%% Overall agreement reference line
+\addplot[thick, dashed, colP90, domain=1:22, samples=2] {74.9}
+  node[pos=0.93, anchor=south, font=\scriptsize, text=colP90] {Overall: 74.9\%};
+
+\end{groupplot}
+\end{tikzpicture}

@@ -1,0 +1,101 @@
+%% F4 — XGBoost feature importance: top-12 features for each CR2 target
+%% Horizontal bar charts (xbar); most important at top (y=11), least at y=0
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=3 by 1, horizontal sep=1.5cm},
+  width=0.345\linewidth, height=7.8cm,
+  xmin=0,
+  ytick={0,...,11},
+  axis on top,
+  xlabel={Feature importance},
+]
+
+%%──── Median (typical scenario) ──────────────────────────────────────────────
+\nextgroupplot[
+  xbar, bar width=5.5pt,
+  title={$\CR{med}$ (typical)},
+  xmax=0.42,
+  yticklabels={Floor 20, Spread $\sigma_p$, Norm. pos., Floor 2,
+               $N_d$, $n_p$, $T_1$, $M_f$,
+               Mean pos., Floor 1, $\tilde{E}$ (norm.), Density $\eta_d$},
+  nodes near coords,
+  nodes near coords style={font=\tiny, anchor=west},
+  every node near coord/.append style={
+    /pgf/number format/fixed, /pgf/number format/precision=3},
+]
+\addplot[fill=colMed, fill opacity=0.85, draw=white]
+  coordinates {
+    (0.3649, 11)
+    (0.2774, 10)
+    (0.0677,  9)
+    (0.0588,  8)
+    (0.0548,  7)
+    (0.0397,  6)
+    (0.0355,  5)
+    (0.0216,  4)
+    (0.0150,  3)
+    (0.0125,  2)
+    (0.0089,  1)
+    (0.0062,  0)
+  };
+
+%%──── P10 (favorable case) ───────────────────────────────────────────────────
+\nextgroupplot[
+  xbar, bar width=5.5pt,
+  title={$\CR{P10}$ (favorable)},
+  xmax=0.84,
+  yticklabels={Spread $\sigma_p$, Floor 9, Norm. pos., $N_d$,
+               Floor 2, $T_1$, $n_p$, Mean pos.,
+               $M_f$, $\tilde{E}$ (norm.), Floor 1, Density $\eta_d$},
+  nodes near coords,
+  nodes near coords style={font=\tiny, anchor=west},
+  every node near coord/.append style={
+    /pgf/number format/fixed, /pgf/number format/precision=3},
+]
+\addplot[fill=colP10, fill opacity=0.85, draw=white]
+  coordinates {
+    (0.7416, 11)
+    (0.0526, 10)
+    (0.0431,  9)
+    (0.0386,  8)
+    (0.0319,  7)
+    (0.0235,  6)
+    (0.0171,  5)
+    (0.0087,  4)
+    (0.0083,  3)
+    (0.0058,  2)
+    (0.0041,  1)
+    (0.0039,  0)
+  };
+
+%%──── P90 (conservative design) ─────────────────────────────────────────────
+\nextgroupplot[
+  xbar, bar width=5.5pt,
+  title={$\CR{P90}$ (conservative)},
+  xmax=0.185,
+  yticklabels={Floor 5, Floor 3, Spread $\sigma_p$, $M_f$,
+               $T_1$, Mean pos., $N_d$, Floor 1,
+               Density $\eta_d$, $\tilde{E}$ (norm.), $n_p$, Floor 2},
+  nodes near coords,
+  nodes near coords style={font=\tiny, anchor=west},
+  every node near coord/.append style={
+    /pgf/number format/fixed, /pgf/number format/precision=3},
+]
+\addplot[fill=colP90, fill opacity=0.85, draw=white]
+  coordinates {
+    (0.1501, 11)
+    (0.1297, 10)
+    (0.1297,  9)
+    (0.1059,  8)
+    (0.1000,  7)
+    (0.0768,  6)
+    (0.0671,  5)
+    (0.0641,  4)
+    (0.0357,  3)
+    (0.0271,  2)
+    (0.0187,  1)
+    (0.0156,  0)
+  };
+
+\end{groupplot}
+\end{tikzpicture}

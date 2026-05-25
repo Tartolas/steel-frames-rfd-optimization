@@ -1,0 +1,5 @@
+Model,CR2_median,CR2_p10,CR2_p90
+LinearRegression,0.1274,0.1267,0.1838
+RandomForest,0.0681,0.0785,0.0981
+Ridge,0.1274,0.1268,0.1838
+XGBoost,0.0652,0.0755,0.0984

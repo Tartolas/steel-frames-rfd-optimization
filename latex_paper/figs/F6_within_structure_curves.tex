@@ -1,0 +1,100 @@
+%% F6 — Within-structure performance gain vs. damper coverage fraction
+%% 2×2 grid: one panel per height group (median ± IQR; no individual curves)
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=2 by 2, horizontal sep=1.5cm, vertical sep=2.2cm},
+  width=0.505\linewidth, height=5.8cm,
+  xmin=-0.02, xmax=1.02, ymin=-0.05, ymax=1.05,
+  xtick={0,0.2,0.4,0.6,0.8,1.0},
+  xticklabels={0\%,20\%,40\%,60\%,80\%,100\%},
+  ytick={0,0.2,0.4,0.6,0.8,1.0},
+  yticklabels={0\%,20\%,40\%,60\%,80\%,100\%},
+  xlabel={Damper density $\etad$ ($N_d / n_p$)},
+  ylabel={Fraction of max. improvement},
+]
+
+%%──── Low-rise (3–5) ──────────────────────────────────────────────────────────
+\nextgroupplot[
+  title={Low-rise (3--5~stories), $n = 250$ structures},
+]
+\addplot[name path=qhF1, draw=none, colLow]
+  table[x=d_bin,y=q75,col sep=comma]{data/f6_Low-rise_3-5.csv};
+\addplot[name path=qlF1, draw=none, colLow]
+  table[x=d_bin,y=q25,col sep=comma]{data/f6_Low-rise_3-5.csv};
+\addplot[colLow!30, fill opacity=0.55] fill between[of=qlF1 and qhF1];
+\addplot[colLow, thick, mark=o, mark size=2.5pt,
+         mark options={fill=colLow!40}]
+  table[x=d_bin, y=med, col sep=comma] {data/f6_Low-rise_3-5.csv};
+\addlegendentry{Median}
+\addlegendimage{colLow!40, fill=colLow!30}
+\addlegendentry{IQR}
+%% 80% threshold line
+\draw[dashed, thin, black!55] (axis cs:0.98,0.0) -- (axis cs:0.98,0.80);
+\draw[dotted, thin, black!40] (axis cs:-0.02,0.80) -- (axis cs:0.98,0.80);
+\node[font=\scriptsize, anchor=south, text=black!55]
+  at (axis cs:0.98,0.0) [right, rotate=90] {80\% at $\etad{=}98\%$};
+
+%%──── Mid-rise (6–10) ─────────────────────────────────────────────────────────
+\nextgroupplot[
+  title={Mid-rise (6--10~stories), $n = 250$ structures},
+  ylabel={},
+]
+\addplot[name path=qhF2, draw=none, colMidH!80!black]
+  table[x=d_bin,y=q75,col sep=comma]{data/f6_Mid-rise_6-10.csv};
+\addplot[name path=qlF2, draw=none, colMidH!80!black]
+  table[x=d_bin,y=q25,col sep=comma]{data/f6_Mid-rise_6-10.csv};
+\addplot[colMidH!50, fill opacity=0.55] fill between[of=qlF2 and qhF2];
+\addplot[colMidH!80!black, thick, mark=square*, mark size=2pt,
+         mark options={fill=colMidH!50}]
+  table[x=d_bin, y=med, col sep=comma] {data/f6_Mid-rise_6-10.csv};
+\addlegendentry{Median}
+\addlegendimage{colMidH!50, fill=colMidH!40}
+\addlegendentry{IQR}
+\draw[dashed, thin, black!55] (axis cs:0.88,0.0) -- (axis cs:0.88,0.80);
+\draw[dotted, thin, black!40] (axis cs:-0.02,0.80) -- (axis cs:0.88,0.80);
+\node[font=\scriptsize, anchor=south, text=black!55]
+  at (axis cs:0.88,0.0) [right, rotate=90] {80\% at $\etad{=}88\%$};
+
+%%──── High-rise (11–15) ───────────────────────────────────────────────────────
+\nextgroupplot[
+  title={High-rise (11--15~stories), $n = 250$ structures},
+]
+\addplot[name path=qhF3, draw=none, colHighR!80!black]
+  table[x=d_bin,y=q75,col sep=comma]{data/f6_High-rise_11-15.csv};
+\addplot[name path=qlF3, draw=none, colHighR!80!black]
+  table[x=d_bin,y=q25,col sep=comma]{data/f6_High-rise_11-15.csv};
+\addplot[colHighR!60, fill opacity=0.55] fill between[of=qlF3 and qhF3];
+\addplot[colHighR!80!black, thick, mark=triangle*, mark size=2.5pt,
+         mark options={fill=colHighR!60}]
+  table[x=d_bin, y=med, col sep=comma] {data/f6_High-rise_11-15.csv};
+\addlegendentry{Median}
+\addlegendimage{colHighR!60, fill=colHighR!50}
+\addlegendentry{IQR}
+\draw[dashed, thin, black!55] (axis cs:0.82,0.0) -- (axis cs:0.82,0.80);
+\draw[dotted, thin, black!40] (axis cs:-0.02,0.80) -- (axis cs:0.82,0.80);
+\node[font=\scriptsize, anchor=south, text=black!55]
+  at (axis cs:0.82,0.0) [right, rotate=90] {80\% at $\etad{=}82\%$};
+
+%%──── Tall (16–20) ────────────────────────────────────────────────────────────
+\nextgroupplot[
+  title={Tall (16--20~stories), $n = 250$ structures},
+  ylabel={},
+]
+\addplot[name path=qhF4, draw=none, colTall]
+  table[x=d_bin,y=q75,col sep=comma]{data/f6_Tall_16-20.csv};
+\addplot[name path=qlF4, draw=none, colTall]
+  table[x=d_bin,y=q25,col sep=comma]{data/f6_Tall_16-20.csv};
+\addplot[colTall!30, fill opacity=0.55] fill between[of=qlF4 and qhF4];
+\addplot[colTall, thick, mark=diamond*, mark size=2.5pt,
+         mark options={fill=colTall!40}]
+  table[x=d_bin, y=med, col sep=comma] {data/f6_Tall_16-20.csv};
+\addlegendentry{Median}
+\addlegendimage{colTall!40, fill=colTall!30}
+\addlegendentry{IQR}
+\draw[dashed, thin, black!55] (axis cs:0.82,0.0) -- (axis cs:0.82,0.80);
+\draw[dotted, thin, black!40] (axis cs:-0.02,0.80) -- (axis cs:0.82,0.80);
+\node[font=\scriptsize, anchor=south, text=black!55]
+  at (axis cs:0.82,0.0) [right, rotate=90] {80\% at $\etad{=}82\%$};
+
+\end{groupplot}
+\end{tikzpicture}

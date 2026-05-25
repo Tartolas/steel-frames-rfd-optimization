@@ -1,0 +1,125 @@
+%% TikZ — RFD activation mechanism
+%% Three portal frames: left drift / neutral / right drift
+%% Row 2: schematic close-up of the rotating RFD device
+\begin{tikzpicture}[x=1cm, y=1cm,
+  col/.style={line width=1.2pt},
+  beam/.style={line width=1.5pt},
+  brace/.style={line width=0.85pt, black!70},
+  gnd/.style={line width=0.9pt},
+  arr/.style={-{Latex[length=5pt,width=4pt]}, line width=1.3pt, gray!65},
+  dev/.style={line width=0.9pt, black!80},
+]
+
+%% ── Frame geometry constants ─────────────────────────────────────────────────
+%% W=2.4 H=2.6  sep=4.0 between frames  drift dl=0.35
+
+%% ═══════════════ ROW 1: Portal frames ═══════════════════════════════════════
+
+%% ── LEFT frame (left drift, delta=-0.35) ─────────────────────────────────────
+\begin{scope}[xshift=0cm]
+  % ground hatch
+  \fill[pattern=north east lines,pattern color=gray!55]
+    (-0.2,-0.28) rectangle (2.6,0);
+  \draw[gnd] (-0.2,0)--(2.6,0);
+  % fixed-base ticks
+  \draw[gnd,line width=0.5pt](0,0)--(0,-0.18)(0,-0.18)--(-0.15,-0.18)--(0.15,-0.18);
+  \draw[gnd,line width=0.5pt](2.4,0)--(2.4,-0.18)(2.4,-0.18)--(2.25,-0.18)--(2.55,-0.18);
+  % columns (tops shifted left by 0.35)
+  \draw[col](0,0)--(-0.35,2.6);
+  \draw[col](2.4,0)--(2.05,2.6);
+  % beam
+  \draw[beam](-0.35,2.6)--(2.05,2.6);
+  % V-braces to RFD node at beam center (0.85, 2.6)
+  \draw[brace](0.4,0.08)--(0.85,2.6);
+  \draw[brace](2.0,0.08)--(0.85,2.6);
+  \fill(0.85,2.6)circle(3pt);
+  % drift arrow pointing left
+  \draw[arr](-0.35+0.8,3.1)--(-0.35+0.8-0.85,3.1);
+\end{scope}
+
+%% ── NEUTRAL frame ────────────────────────────────────────────────────────────
+\begin{scope}[xshift=4.0cm]
+  \fill[pattern=north east lines,pattern color=gray!55]
+    (-0.2,-0.28) rectangle (2.6,0);
+  \draw[gnd](-0.2,0)--(2.6,0);
+  \draw[gnd,line width=0.5pt](0,0)--(0,-0.18)(0,-0.18)--(-0.15,-0.18)--(0.15,-0.18);
+  \draw[gnd,line width=0.5pt](2.4,0)--(2.4,-0.18)(2.4,-0.18)--(2.25,-0.18)--(2.55,-0.18);
+  \draw[col](0,0)--(0,2.6);
+  \draw[col](2.4,0)--(2.4,2.6);
+  \draw[beam](0,2.6)--(2.4,2.6);
+  \draw[brace](0.45,0.08)--(1.2,2.6);
+  \draw[brace](1.95,0.08)--(1.2,2.6);
+  \fill(1.2,2.6)circle(3pt);
+\end{scope}
+
+%% ── RIGHT frame (right drift, delta=+0.35) ───────────────────────────────────
+\begin{scope}[xshift=8.0cm]
+  \fill[pattern=north east lines,pattern color=gray!55]
+    (-0.2,-0.28) rectangle (2.6,0);
+  \draw[gnd](-0.2,0)--(2.6,0);
+  \draw[gnd,line width=0.5pt](0,0)--(0,-0.18)(0,-0.18)--(-0.15,-0.18)--(0.15,-0.18);
+  \draw[gnd,line width=0.5pt](2.4,0)--(2.4,-0.18)(2.4,-0.18)--(2.25,-0.18)--(2.55,-0.18);
+  \draw[col](0,0)--(0.35,2.6);
+  \draw[col](2.4,0)--(2.75,2.6);
+  \draw[beam](0.35,2.6)--(2.75,2.6);
+  \draw[brace](0.4,0.08)--(1.55,2.6);
+  \draw[brace](2.0,0.08)--(1.55,2.6);
+  \fill(1.55,2.6)circle(3pt);
+  % drift arrow pointing right
+  \draw[arr](2.75-0.8,3.1)--(2.75-0.8+0.85,3.1);
+\end{scope}
+
+%% ── Separator dashed line ────────────────────────────────────────────────────
+\draw[gray!40,line width=0.4pt,dashed]
+  (-0.3,-0.55)--(10.6,-0.55);
+
+%% ═══════════════ ROW 2: RFD close-up ════════════════════════════════════════
+%% Centered below each frame at y=-1.45
+
+%% Left: device tilted CCW
+\begin{scope}[xshift=1.2cm, yshift=-1.45cm, rotate=-22]
+  \fill[gray!35](-0.55,-0.13)rectangle(0.55,0.13);
+  \draw[dev](-0.55,-0.13)rectangle(0.55,0.13);
+  \fill[gray!20](-0.55,-0.09)--(-0.85,-0.23)--(-0.85,0.23)--(-0.55,0.09);
+  \draw[dev](-0.55,-0.09)--(-0.85,-0.23)--(-0.85,0.23)--(-0.55,0.09);
+  \fill[gray!20](0.55,-0.09)--(0.85,-0.23)--(0.85,0.23)--(0.55,0.09);
+  \draw[dev](0.55,-0.09)--(0.85,-0.23)--(0.85,0.23)--(0.55,0.09);
+  \fill[black!50]circle(0.075);
+  \draw[-{Latex[length=2.5pt]},black!55,line width=0.55pt]
+    (-0.70,0.28)arc(150:210:0.31);
+  \draw[-{Latex[length=2.5pt]},black!55,line width=0.55pt]
+    (0.70,-0.28)arc(-30:30:0.31);
+\end{scope}
+
+%% Neutral: device horizontal
+\begin{scope}[xshift=5.2cm, yshift=-1.45cm]
+  \fill[gray!35](-0.55,-0.13)rectangle(0.55,0.13);
+  \draw[dev](-0.55,-0.13)rectangle(0.55,0.13);
+  \fill[gray!20](-0.55,-0.09)--(-0.85,-0.23)--(-0.85,0.23)--(-0.55,0.09);
+  \draw[dev](-0.55,-0.09)--(-0.85,-0.23)--(-0.85,0.23)--(-0.55,0.09);
+  \fill[gray!20](0.55,-0.09)--(0.85,-0.23)--(0.85,0.23)--(0.55,0.09);
+  \draw[dev](0.55,-0.09)--(0.85,-0.23)--(0.85,0.23)--(0.55,0.09);
+  \fill[black!50]circle(0.075);
+\end{scope}
+
+%% Right: device tilted CW
+\begin{scope}[xshift=9.35cm, yshift=-1.45cm, rotate=22]
+  \fill[gray!35](-0.55,-0.13)rectangle(0.55,0.13);
+  \draw[dev](-0.55,-0.13)rectangle(0.55,0.13);
+  \fill[gray!20](-0.55,-0.09)--(-0.85,-0.23)--(-0.85,0.23)--(-0.55,0.09);
+  \draw[dev](-0.55,-0.09)--(-0.85,-0.23)--(-0.85,0.23)--(-0.55,0.09);
+  \fill[gray!20](0.55,-0.09)--(0.85,-0.23)--(0.85,0.23)--(0.55,0.09);
+  \draw[dev](0.55,-0.09)--(0.85,-0.23)--(0.85,0.23)--(0.55,0.09);
+  \fill[black!50]circle(0.075);
+  \draw[-{Latex[length=2.5pt]},black!55,line width=0.55pt]
+    (-0.70,0.28)arc(150:210:0.31);
+  \draw[-{Latex[length=2.5pt]},black!55,line width=0.55pt]
+    (0.70,-0.28)arc(-30:30:0.31);
+\end{scope}
+
+%% Connector dots (frame RFD node → close-up)
+\draw[gray!45,dashed,line width=0.35pt](0.85,-0.03)--(1.2,-0.87);
+\draw[gray!45,dashed,line width=0.35pt](5.2,-0.03)--(5.2,-1.23);
+\draw[gray!45,dashed,line width=0.35pt](9.55,-0.03)--(9.35,-0.87);
+
+\end{tikzpicture}

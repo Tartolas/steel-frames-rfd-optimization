@@ -1,0 +1,85 @@
+%% F5 — Diminishing returns: coverage density vs. best CR2_median
+%% Left: median ± IQR by height group (density)
+%% Right: normalized CR2 vs. absolute N_dampers (all buildings)
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=2 by 1, horizontal sep=1.6cm},
+  width=0.505\linewidth, height=6.5cm,
+]
+
+%%──── Left panel: CR2 vs density, by height group ───────────────────────────
+\nextgroupplot[
+  xlabel={Damper density $\etad = N_d / n_p$},
+  ylabel={Best achievable $\CR{med}$},
+  xmin=0, xmax=1.05,
+  ymin=0.75, ymax=1.75,
+  xtick={0,0.2,0.4,0.6,0.8,1.0},
+  xticklabels={0\%,20\%,40\%,60\%,80\%,100\%},
+  legend pos=north east,
+  legend cell align=left,
+]
+%% Low-rise (3–5)
+\addplot[name path=qhL, draw=none] table[x=d_bin,y=q75,col sep=comma]{data/f5_low.csv};
+\addplot[name path=qlL, draw=none] table[x=d_bin,y=q25,col sep=comma]{data/f5_low.csv};
+\addplot[colLow!30, fill opacity=0.50] fill between[of=qlL and qhL];
+\addplot[colLow, thick, mark=o, mark size=2pt]
+  table[x=d_bin, y=med, col sep=comma] {data/f5_low.csv};
+\addlegendimage{colLow, thick, fill=colLow!30}
+\addlegendentry{Low-rise (3--5)}
+
+%% Mid-rise (6–10)
+\addplot[name path=qhM, draw=none] table[x=d_bin,y=q75,col sep=comma]{data/f5_mid.csv};
+\addplot[name path=qlM, draw=none] table[x=d_bin,y=q25,col sep=comma]{data/f5_mid.csv};
+\addplot[colMidH!60, fill opacity=0.50] fill between[of=qlM and qhM];
+\addplot[colMidH!80!black, thick, mark=square*, mark size=2pt]
+  table[x=d_bin, y=med, col sep=comma] {data/f5_mid.csv};
+\addlegendimage{colMidH!80!black, thick, fill=colMidH!40}
+\addlegendentry{Mid-rise (6--10)}
+
+%% High-rise (11–15)
+\addplot[name path=qhH, draw=none] table[x=d_bin,y=q75,col sep=comma]{data/f5_high.csv};
+\addplot[name path=qlH, draw=none] table[x=d_bin,y=q25,col sep=comma]{data/f5_high.csv};
+\addplot[colHighR!70, fill opacity=0.50] fill between[of=qlH and qhH];
+\addplot[colHighR!80!black, thick, mark=triangle*, mark size=2.5pt]
+  table[x=d_bin, y=med, col sep=comma] {data/f5_high.csv};
+\addlegendimage{colHighR!80!black, thick, fill=colHighR!50}
+\addlegendentry{High-rise (11--15)}
+
+%% Tall (16–20)
+\addplot[name path=qhT, draw=none] table[x=d_bin,y=q75,col sep=comma]{data/f5_tall.csv};
+\addplot[name path=qlT, draw=none] table[x=d_bin,y=q25,col sep=comma]{data/f5_tall.csv};
+\addplot[colTall!30, fill opacity=0.50] fill between[of=qlT and qhT];
+\addplot[colTall, thick, mark=diamond*, mark size=2.5pt]
+  table[x=d_bin, y=med, col sep=comma] {data/f5_tall.csv};
+\addlegendimage{colTall, thick, fill=colTall!30}
+\addlegendentry{Tall (16--20)}
+
+%%──── Right panel: normalized CR2 vs N_dampers ─────────────────────────────
+\nextgroupplot[
+  xlabel={$N_d$ (absolute count, all heights)},
+  ylabel={$\CR{med}\,/\,\CR{med}\!\big|_{N_d=1}$},
+  xmin=0.5, xmax=20.5,
+  ymin=0.72, ymax=1.04,
+  xtick={2,4,6,8,10,12,14,16,18,20},
+  ytick={0.75,0.80,0.85,0.90,0.95,1.00},
+  yticklabels={75\%,80\%,85\%,90\%,95\%,100\%},
+  legend pos=north east,
+]
+\addplot[name path=qhA, draw=none]
+  table[x=N_Dampers_first, y=q75_norm, col sep=comma] {data/f5_right.csv};
+\addplot[name path=qlA, draw=none]
+  table[x=N_Dampers_first, y=q25_norm, col sep=comma] {data/f5_right.csv};
+\addplot[colMed!25, fill opacity=0.55] fill between[of=qlA and qhA];
+\addplot[colMed, thick, mark=*, mark size=2.5pt]
+  table[x=N_Dampers_first, y=med_norm, col sep=comma] {data/f5_right.csv};
+\addlegendentry{Median (all bldgs)}
+\addlegendimage{colMed!30, fill=colMed!25}
+\addlegendentry{IQR (Q25--Q75)}
+%% 80% threshold line (N=11 from original analysis)
+\addplot[thin, dashed, orange!80!black, domain=0.5:20.5, samples=2] {0.7573}
+  node[pos=0.94, anchor=north west, font=\scriptsize, text=orange!80!black] {80\% gain};
+\addplot[thin, dotted, orange!80!black] coordinates {(11,0.72)(11,1.04)};
+\node[font=\scriptsize, text=orange!80!black] at (axis cs:11,0.727) [above right] {$N=11$};
+
+\end{groupplot}
+\end{tikzpicture}

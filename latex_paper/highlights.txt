@@ -1,0 +1,7 @@
+Highlights
+
+434,000 nonlinear simulations for steel frames with rotational friction dampers
+XGBoost surrogate model achieves R² = 0.92–0.93 for median seismic performance
+Damper coverage density η_d dominates seismic design (r = −0.73 vs. r = −0.45)
+80% of peak improvement reached at η_d ≈ 0.85 for mid-to-tall frames (6–20 floors)
+η_d ≥ 0.60 prevents structural damage; η_d ≥ 0.85 controls acceleration and drift

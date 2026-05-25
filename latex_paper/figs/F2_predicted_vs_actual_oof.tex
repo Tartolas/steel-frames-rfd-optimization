@@ -1,0 +1,62 @@
+%% F2 — XGBoost out-of-fold predictions for CR2_median
+%% Left: predicted vs observed (colored by n_pisos)
+%% Right: residuals vs predicted
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=2 by 1, horizontal sep=1.6cm},
+  width=0.505\linewidth, height=6.5cm,
+]
+
+%%──── Left panel: predicted vs observed ────────────────────────────────────
+\nextgroupplot[
+  xlabel={Observed $\CR{med}$},
+  ylabel={Predicted $\CR{med}$ (OOF)},
+  xmin=0.45, xmax=2.65, ymin=0.45, ymax=2.65,
+  colormap/viridis,
+  colorbar,
+  colorbar style={
+    ylabel={$n_p$},
+    ytick={3,5,7,10,12,15,18,20},
+    width=5pt,
+  },
+  point meta min=3, point meta max=20,
+]
+%% Scatter (4 000 sub-sample)
+\addplot[
+  only marks, mark=*, mark size=0.7pt,
+  scatter, scatter src=explicit,
+  opacity=0.45,
+] table[x=y_true, y=y_pred, meta=n_pisos, col sep=comma]
+  {data/f2_scatter.csv};
+%% Identity line
+\addplot[thick, dashed, black!70, domain=0.45:2.65, samples=2] {x};
+%% Annotation
+\node[anchor=north west, fill=white, fill opacity=0.85, text opacity=1,
+      draw=gray!50, inner sep=3pt, font=\scriptsize, align=left]
+  at (rel axis cs:0.04,0.96)
+  {$R^2_\mathrm{CV}=0.920$\\$\RMSE=0.065$\\$\mathrm{MAE}=0.047$};
+
+%%──── Right panel: residuals vs predicted ───────────────────────────────────
+\nextgroupplot[
+  xlabel={Predicted $\CR{med}$ (OOF)},
+  ylabel={Residual (predicted $-$ observed)},
+  xmin=0.45, xmax=2.30, ymin=-0.65, ymax=0.65,
+  colormap/viridis,
+  point meta min=3, point meta max=20,
+]
+\addplot[
+  only marks, mark=*, mark size=0.7pt,
+  scatter, scatter src=explicit,
+  opacity=0.40,
+] table[x=y_pred, y expr={\thisrow{y_pred}-\thisrow{y_true}},
+        meta=n_pisos, col sep=comma]
+  {data/f2_scatter.csv};
+%% Reference lines
+\addplot[thick, dashed, black!70, domain=0.45:2.30, samples=2] {0};
+\addplot[thin, dotted, colXGB, domain=0.45:2.30, samples=2] {0.0652}
+  node[pos=0.97, anchor=south west, font=\scriptsize] {$+\RMSE$};
+\addplot[thin, dotted, colXGB, domain=0.45:2.30, samples=2] {-0.0652}
+  node[pos=0.97, anchor=north west, font=\scriptsize] {$-\RMSE$};
+
+\end{groupplot}
+\end{tikzpicture}

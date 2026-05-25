@@ -1,0 +1,21 @@
+# Simulation outputs (too large — 112 MB)
+out_fase2/
+
+# Trained models (reproducible by running 04_full_pipeline.py)
+out_ml/models/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Word documents and zip archives
+*.docx
+*.zip
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db

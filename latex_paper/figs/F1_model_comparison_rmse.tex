@@ -1,0 +1,35 @@
+%% F1 — Cross-validated RMSE comparison: 4 models × 3 targets (grouped ybar)
+\begin{tikzpicture}
+\begin{axis}[
+  ybar,
+  width=0.88\linewidth, height=6.8cm,
+  bar width=8pt,
+  xtick={0,1,2},
+  xticklabels={$\CR{med}$ (typical), $\CR{P10}$ (favorable), $\CR{P90}$ (conservative)},
+  ylabel={$\RMSE$},
+  ymin=0, ymax=0.235,
+  axis on top,
+  legend columns=4,
+  legend pos=north west,
+  legend style={column sep=4pt, inner sep=3pt},
+  enlarge x limits=0.22,
+  nodes near coords,
+  nodes near coords style={font=\scriptsize, inner sep=1pt},
+  every node near coord/.append style={
+    /pgf/number format/fixed, /pgf/number format/precision=3},
+]
+%% Linear Regression
+\addplot[fill=colLR, draw=gray!50]
+  coordinates {(0,0.1274)(1,0.1267)(2,0.1838)};
+%% Ridge
+\addplot[fill=colRidge, draw=gray!40]
+  coordinates {(0,0.1274)(1,0.1268)(2,0.1838)};
+%% Random Forest
+\addplot[fill=colRF, draw=colRF!60!black]
+  coordinates {(0,0.0681)(1,0.0785)(2,0.0981)};
+%% XGBoost
+\addplot[fill=colXGB, draw=colXGB!60!black]
+  coordinates {(0,0.0652)(1,0.0755)(2,0.0984)};
+\legend{Linear Reg., Ridge, Random Forest, XGBoost}
+\end{axis}
+\end{tikzpicture}
