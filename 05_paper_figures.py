@@ -4,7 +4,7 @@ FIGURAS PARA EL PAPER — Optimización ML de RFD en marcos de acero
 ================================================================================
 Genera figuras publication-quality que complementan los resultados del pipeline ML.
 
-Figuras producidas (en out_ml/paper_figs/):
+Figuras producidas (en latex_paper/figs/):
   F1  Comparación RMSE_CV: 4 modelos × 3 targets
   F2  Predicción vs valor real (OOF cross-validation, XGBoost, CR2_median)
   F3  Análisis de residuos del mejor modelo
@@ -43,7 +43,7 @@ warnings.filterwarnings("ignore")
 # ── Paths ─────────────────────────────────────────────────────────────────────
 OUT_DIR = Path("./out_ml")
 MODELS_DIR = OUT_DIR / "models"
-FIG_DIR = OUT_DIR / "paper_figs"
+FIG_DIR = Path("./latex_paper/figs")
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Estilo global ──────────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ def load_data():
     feature_cols = (
         ["n_pisos_first", "T1_real_first", "Mf_KN_first", "N_Dampers_first",
          "densidad_dampers", "posicion_promedio_dampers", "posicion_normalizada",
-         "concentracion_dampers", "energia_total_normalizada"]
+         "concentracion_dampers"]
         + [c for c in agg.columns if c.startswith("damper_piso")]
     )
     return agg, feature_cols
@@ -156,24 +156,15 @@ def save(fig, name, tight=True):
 def fig_model_comparison():
     print("\n[F1] Comparación de modelos (RMSE_CV)...")
 
-    data = {
-        "CR2_median": {"LinearRegression": 0.1274, "Ridge": 0.1274,
-                       "RandomForest": 0.0681, "XGBoost": 0.0652},
-        "CR2_p10":    {"LinearRegression": 0.1267, "Ridge": 0.1268,
-                       "RandomForest": 0.0785, "XGBoost": 0.0755},
-        "CR2_p90":    {"LinearRegression": 0.1838, "Ridge": 0.1838,
-                       "RandomForest": 0.0981, "XGBoost": 0.0984},
-    }
-
-    # Intentar cargar desde CSV si existe
+    # Load RMSE_CV from the flat summary CSV (Target, Model, RMSE_CV, ...)
     csv_path = OUT_DIR / "results" / "rmse_cv_resumen.csv"
-    if csv_path.exists():
-        df_csv = pd.read_csv(csv_path, index_col=0)
-        for target in TARGETS:
-            if target in df_csv.columns:
-                for model in MODEL_ORDER:
-                    if model in df_csv.index:
-                        data[target][model] = df_csv.loc[model, target]
+    df_csv = pd.read_csv(csv_path)
+    data = {t: {} for t in TARGETS}
+    for _, row in df_csv.iterrows():
+        t = row["Target"]
+        m = row["Model"]
+        if t in data:
+            data[t][m] = row["RMSE_CV"]
 
     n_models = len(MODEL_ORDER)
     n_targets = len(TARGETS)
@@ -320,11 +311,10 @@ def fig_feature_importance(agg, feature_cols):
         "Mf_KN_first": r"$M_f$ [kN·m]",
         "n_pisos_first": r"$n_p$",
         "T1_real_first": r"$T_1$ [s]",
-        "densidad_dampers": "Density (N/n)",
-        "posicion_promedio_dampers": "Mean position",
-        "posicion_normalizada": "Norm. position",
-        "concentracion_dampers": "Spread σ",
-        "energia_total_normalizada": "Norm. energy",
+        "densidad_dampers": r"$\eta_d$",
+        "posicion_promedio_dampers": r"$\bar{p}$",
+        "posicion_normalizada": r"$\tilde{p}$",
+        "concentracion_dampers": r"$\sigma_p$",
     }
     for i in range(1, 21):
         rename_map[f"damper_piso{i}"] = f"Floor {i}"
@@ -574,7 +564,7 @@ def fig_interaction_heatmap(agg):
 def fig_convergence_extended(agg, feature_cols):
     print("\n[F8] Análisis de convergencia extendido...")
 
-    # Para cada estructura, ¿cuántos amortiguadores recomienda cada target?
+    # Best config per structure per target
     best_per_target = {}
     for target_col in TARGETS:
         suffix = target_col.replace("CR2_", "")
@@ -584,71 +574,48 @@ def fig_convergence_extended(agg, feature_cols):
         agg_c = agg.copy()
         agg_c["pred"] = model.predict(agg[feature_cols].values)
         best_idx = agg_c.groupby("estructura_id")["pred"].idxmin()
-        best = agg_c.loc[best_idx][["estructura_id", "N_Dampers_first", "n_pisos_first",
-                                     "Mf_KN_first", target_col]].copy()
-        best.rename(columns={
-            "N_Dampers_first": f"N_{suffix}",
-            "Mf_KN_first": f"Mf_{suffix}",
-            target_col: f"CR2_{suffix}",
-        }, inplace=True)
+        best = agg_c.loc[best_idx][["estructura_id", "N_Dampers_first",
+                                     "n_pisos_first"]].copy()
+        best.rename(columns={"N_Dampers_first": f"N_{suffix}"}, inplace=True)
         best_per_target[target_col] = best
 
-    if len(best_per_target) < 2:
+    if "CR2_median" not in best_per_target or "CR2_p90" not in best_per_target:
         print("  [SKIP] Modelos insuficientes.")
         return
 
-    # Merge
-    df_conv = best_per_target["CR2_median"]
-    for tc in ["CR2_p10", "CR2_p90"]:
-        if tc in best_per_target:
-            df_conv = df_conv.merge(best_per_target[tc], on=["estructura_id", "n_pisos_first"])
+    df = best_per_target["CR2_median"].merge(
+        best_per_target["CR2_p90"][["estructura_id", "N_p90"]],
+        on="estructura_id"
+    )
+    df["agree"] = df["N_median"] == df["N_p90"]
+    conv_rate = df["agree"].mean() * 100
 
-    if "N_p10" in df_conv.columns and "N_p90" in df_conv.columns:
-        df_conv["N_agree"] = (
-            (df_conv["N_median"] == df_conv["N_p10"]) &
-            (df_conv["N_median"] == df_conv["N_p90"])
-        )
-        conv_rate = df_conv["N_agree"].mean() * 100
-    else:
-        conv_rate = None
+    # Height groups
+    def height_group(n):
+        if n <= 7:   return "Low-rise\n(3–7)"
+        if n <= 15:  return "Mid-rise\n(8–15)"
+        return "High-rise\n(≥16)"
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    df["group"] = df["n_pisos_first"].apply(height_group)
+    group_order = ["Low-rise\n(3–7)", "Mid-rise\n(8–15)", "High-rise\n(≥16)"]
+    agree_by_group = df.groupby("group")["agree"].mean() * 100
 
-    # Panel izquierdo: distribución de N recomendado por target
-    ax = axes[0]
-    cols_N = [c for c in df_conv.columns if c.startswith("N_") and c != "N_agree"]
-    colors_n = [TARGET_COLORS["CR2_median"], TARGET_COLORS["CR2_p10"], TARGET_COLORS["CR2_p90"]]
-    target_labels = ["Median", "P10", "P90"]
-    max_nd = int(df_conv[cols_N].max().max()) if cols_N else 20
-    bins = np.arange(0.5, max_nd + 1.5)
-    for col, color, lbl in zip(cols_N, colors_n, target_labels):
-        if col not in df_conv.columns:
-            continue
-        ax.hist(df_conv[col], bins=bins, alpha=0.55, color=color,
-                label=lbl, edgecolor="white")
-    ax.set_xlabel("Recommended N$_{dampers}$")
-    ax.set_ylabel("Number of structures")
-    ax.legend()
+    fig, ax = plt.subplots(figsize=(6.5, 5.5))
 
-    # Panel derecho: acuerdo N_median vs N_p90 por n_pisos
-    ax2 = axes[1]
-    if "N_p90" in df_conv.columns:
-        df_conv["delta_N"] = (df_conv["N_p90"] - df_conv["N_median"]).abs()
-        agree_by_height = df_conv.groupby("n_pisos_first")["N_agree"].mean() * 100
-        delta_by_height = df_conv.groupby("n_pisos_first")["delta_N"].median()
-        ax2b = ax2.twinx()
-        ax2.bar(agree_by_height.index, agree_by_height.values,
-                color="#2166AC", alpha=0.6, label="Agreement rate (%)")
-        ax2b.plot(delta_by_height.index, delta_by_height.values,
-                  "o-", color="#D6604D", lw=1.5, ms=4, label="|N_p90 − N_median|")
-        ax2.set_xlabel("Building height (n$_{pisos}$)")
-        ax2.set_ylabel("Agreement rate (%)", color="#2166AC")
-        ax2b.set_ylabel("|ΔN| = |N$_{P90}$ − N$_{median}$|", color="#D6604D")
-        lines1, labels1 = ax2.get_legend_handles_labels()
-        lines2, labels2 = ax2b.get_legend_handles_labels()
-        ax2.legend(lines1 + lines2, labels1 + labels2, fontsize=9)
-    else:
-        ax2.set_visible(False)
+    # Scatter N_median vs N_p90, colored by n_pisos
+    sc = ax.scatter(df["N_median"], df["N_p90"],
+                    c=df["n_pisos_first"], cmap="RdYlBu_r",
+                    alpha=0.35, s=18, linewidths=0, zorder=3)
+    max_n = max(df["N_median"].max(), df["N_p90"].max())
+    ax.plot([0, max_n + 1], [0, max_n + 1], "k--", lw=1.2, alpha=0.6,
+            label="Perfect agreement", zorder=4)
+    plt.colorbar(sc, ax=ax, label="Building height $n_p$ (stories)")
+    ax.set_xlabel("Optimal $N_d$ — median scenario")
+    ax.set_ylabel("Optimal $N_d$ — P90 scenario")
+    ax.set_xlim(0, max_n + 1)
+    ax.set_ylim(0, max_n + 1)
+    ax.set_aspect("equal")
+    ax.legend(fontsize=9, loc="upper left")
 
     plt.tight_layout()
     save(fig, "F8_convergence_extended.png")

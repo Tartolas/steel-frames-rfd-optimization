@@ -46,7 +46,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.model_selection import GroupKFold, cross_val_score
+from sklearn.model_selection import GroupKFold, cross_val_score, cross_validate
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.ensemble import RandomForestRegressor
@@ -219,7 +219,6 @@ def feature_engineering(agg):
 
     agg['densidad_dampers'] = agg['N_Dampers_first'] / agg['n_pisos_first']
     agg['Mf_por_damper'] = agg['Mf_KN_first']
-    agg['energia_total_normalizada'] = agg['E_total_J_median'] / (agg['n_pisos_first'] * 1e6)
 
     def calc_cm_dampers(row):
         bits = row['Bits_first']
@@ -251,7 +250,7 @@ def prepare_train_test(agg, target_col='CR2_median'):
     feature_cols = (
         ['n_pisos_first', 'T1_real_first', 'Mf_KN_first', 'N_Dampers_first',
          'densidad_dampers', 'posicion_promedio_dampers', 'posicion_normalizada',
-         'concentracion_dampers', 'energia_total_normalizada'] +
+         'concentracion_dampers'] +
         [c for c in agg.columns if c.startswith('damper_piso')]
     )
     groups = agg['estructura_id'].values
@@ -271,39 +270,45 @@ def train_models(X, y, groups, feature_cols, target_col='CR2_median'):
     results = {}
     gkf = GroupKFold(n_splits=5)
 
+    def _cv_stats(estimator, X, y, groups, gkf):
+        cv = cross_validate(estimator, X, y, groups=groups, cv=gkf,
+                            scoring={'neg_mse': 'neg_mean_squared_error', 'r2': 'r2'},
+                            n_jobs=-1)
+        rmse_folds = np.sqrt(-cv['test_neg_mse'])
+        return (rmse_folds.mean(), rmse_folds.std(),
+                cv['test_r2'].mean(), cv['test_r2'].std())
+
     print("      [1/4] Linear Regression...")
     lr = LinearRegression()
-    scores = cross_val_score(lr, X, y, groups=groups, cv=gkf,
-                             scoring='neg_mean_squared_error', n_jobs=-1)
-    rmse_cv = np.sqrt(-scores.mean())
+    rmse_cv, rmse_std, r2_cv, r2_std = _cv_stats(lr, X, y, groups, gkf)
     lr.fit(X, y)
-    r2_train = r2_score(y, lr.predict(X))
-    results['LinearRegression'] = {'RMSE_CV': rmse_cv, 'R2_train': r2_train, 'model': lr}
-    print(f"            RMSE_CV={rmse_cv:.4f}  R²_train={r2_train:.4f}")
+    results['LinearRegression'] = {
+        'RMSE_CV': rmse_cv, 'RMSE_CV_std': rmse_std,
+        'R2_CV': r2_cv, 'R2_CV_std': r2_std, 'model': lr,
+    }
+    print(f"            RMSE_CV={rmse_cv:.4f}±{rmse_std:.4f}  R²_CV={r2_cv:.4f}±{r2_std:.4f}")
 
     print("      [2/4] Ridge (alpha=1.0)...")
     ridge = Ridge(alpha=1.0)
-    scores = cross_val_score(ridge, X, y, groups=groups, cv=gkf,
-                             scoring='neg_mean_squared_error', n_jobs=-1)
-    rmse_cv = np.sqrt(-scores.mean())
+    rmse_cv, rmse_std, r2_cv, r2_std = _cv_stats(ridge, X, y, groups, gkf)
     ridge.fit(X, y)
-    r2_train = r2_score(y, ridge.predict(X))
-    results['Ridge'] = {'RMSE_CV': rmse_cv, 'R2_train': r2_train, 'model': ridge}
-    print(f"            RMSE_CV={rmse_cv:.4f}  R²_train={r2_train:.4f}")
+    results['Ridge'] = {
+        'RMSE_CV': rmse_cv, 'RMSE_CV_std': rmse_std,
+        'R2_CV': r2_cv, 'R2_CV_std': r2_std, 'model': ridge,
+    }
+    print(f"            RMSE_CV={rmse_cv:.4f}±{rmse_std:.4f}  R²_CV={r2_cv:.4f}±{r2_std:.4f}")
 
     print("      [3/4] Random Forest (n=100)...")
     rf = RandomForestRegressor(n_estimators=100, max_depth=15,
                                min_samples_split=20, random_state=42, n_jobs=-1)
-    scores = cross_val_score(rf, X, y, groups=groups, cv=gkf,
-                             scoring='neg_mean_squared_error', n_jobs=-1)
-    rmse_cv = np.sqrt(-scores.mean())
+    rmse_cv, rmse_std, r2_cv, r2_std = _cv_stats(rf, X, y, groups, gkf)
     rf.fit(X, y)
-    r2_train = r2_score(y, rf.predict(X))
     results['RandomForest'] = {
-        'RMSE_CV': rmse_cv, 'R2_train': r2_train, 'model': rf,
-        'feature_importances': rf.feature_importances_
+        'RMSE_CV': rmse_cv, 'RMSE_CV_std': rmse_std,
+        'R2_CV': r2_cv, 'R2_CV_std': r2_std, 'model': rf,
+        'feature_importances': rf.feature_importances_,
     }
-    print(f"            RMSE_CV={rmse_cv:.4f}  R²_train={r2_train:.4f}")
+    print(f"            RMSE_CV={rmse_cv:.4f}±{rmse_std:.4f}  R²_CV={r2_cv:.4f}±{r2_std:.4f}")
 
     try:
         import xgboost as xgb
@@ -311,16 +316,14 @@ def train_models(X, y, groups, feature_cols, target_col='CR2_median'):
         xgb_model = xgb.XGBRegressor(n_estimators=100, max_depth=6,
                                      learning_rate=0.1, random_state=42,
                                      n_jobs=-1, verbosity=0)
-        scores = cross_val_score(xgb_model, X, y, groups=groups, cv=gkf,
-                                 scoring='neg_mean_squared_error', n_jobs=-1)
-        rmse_cv = np.sqrt(-scores.mean())
+        rmse_cv, rmse_std, r2_cv, r2_std = _cv_stats(xgb_model, X, y, groups, gkf)
         xgb_model.fit(X, y)
-        r2_train = r2_score(y, xgb_model.predict(X))
         results['XGBoost'] = {
-            'RMSE_CV': rmse_cv, 'R2_train': r2_train, 'model': xgb_model,
-            'feature_importances': xgb_model.feature_importances_
+            'RMSE_CV': rmse_cv, 'RMSE_CV_std': rmse_std,
+            'R2_CV': r2_cv, 'R2_CV_std': r2_std, 'model': xgb_model,
+            'feature_importances': xgb_model.feature_importances_,
         }
-        print(f"            RMSE_CV={rmse_cv:.4f}  R²_train={r2_train:.4f}")
+        print(f"            RMSE_CV={rmse_cv:.4f}±{rmse_std:.4f}  R²_CV={r2_cv:.4f}±{r2_std:.4f}")
     except ImportError:
         print("      [4/4] XGBoost no instalado. Saltando.")
 
@@ -343,8 +346,14 @@ def evaluate_models(results, feature_cols, target_col='CR2_median'):
     suffix = target_col.replace('CR2_', '')
     print(f"\n[7/8] Evaluación — {target_col}")
 
-    comparison = [{'Model': n, 'RMSE_CV': r['RMSE_CV'], 'R2_train': r['R2_train']}
-                  for n, r in results.items()]
+    comparison = [
+        {
+            'Model': n,
+            'RMSE_CV': r['RMSE_CV'], 'RMSE_CV_std': r['RMSE_CV_std'],
+            'R2_CV':   r['R2_CV'],   'R2_CV_std':   r['R2_CV_std'],
+        }
+        for n, r in results.items()
+    ]
     df_comp = pd.DataFrame(comparison).sort_values('RMSE_CV')
     print(df_comp.to_string(index=False))
     df_comp.to_csv(RESULTS_DIR / f'model_comparison_{suffix}.csv', index=False)
@@ -500,12 +509,18 @@ def main():
     rows = []
     for tc, results in all_results.items():
         for name, res in results.items():
-            rows.append({'Target': tc, 'Model': name,
-                         'RMSE_CV': res['RMSE_CV'], 'R2_train': res['R2_train']})
+            rows.append({
+                'Target': tc, 'Model': name,
+                'RMSE_CV': res['RMSE_CV'], 'RMSE_CV_std': res['RMSE_CV_std'],
+                'R2_CV':   res['R2_CV'],   'R2_CV_std':   res['R2_CV_std'],
+            })
     df_summary = pd.DataFrame(rows)
-    pivot = df_summary.pivot(index='Model', columns='Target', values='RMSE_CV').round(4)
-    print(pivot.to_string())
-    pivot.to_csv(RESULTS_DIR / 'rmse_cv_resumen.csv')
+    pivot_rmse = df_summary.pivot(index='Model', columns='Target',
+                                  values='RMSE_CV').round(4)
+    print(pivot_rmse.to_string())
+    df_summary.to_csv(RESULTS_DIR / 'rmse_cv_resumen.csv', index=False)
+    print(f"\n  [OK] Métricas completas (RMSE±std, R²±std) en: "
+          f"{RESULTS_DIR / 'rmse_cv_resumen.csv'}")
 
     # Análisis de convergencia
     if feature_cols is not None:

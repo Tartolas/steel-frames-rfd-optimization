@@ -1,3 +1,24 @@
+# Steel frames with rotational friction dampers — ML surrogate model
+
+Code and data for the article:
+
+> Ponce-López, E., & Yáñez-Godoy, H. (2026). *A machine learning-based surrogate model for analyzing the nonlinear seismic response of steel moment frames with rotational friction dampers.* Machine Learning with Applications, 101030. https://doi.org/10.1016/j.mlwa.2026.101030
+
+```bibtex
+@article{PonceLopez2026RFD,
+  author  = {Ponce-L{\'o}pez, Emiliano and Y{\'a}{\~n}ez-Godoy, Humberto},
+  title   = {A machine learning-based surrogate model for analyzing the nonlinear seismic response of steel moment frames with rotational friction dampers},
+  journal = {Machine Learning with Applications},
+  pages   = {101030},
+  year    = {2026},
+  doi     = {10.1016/j.mlwa.2026.101030}
+}
+```
+
+Code: MIT License. Data: CC BY 4.0 (see `LICENSE`).
+
+---
+
 # Pipeline ML — Marcos con amortiguadores de fricción rotacional
 
 Este proyecto entrena un modelo de Machine Learning para predecir el desempeño

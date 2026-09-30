@@ -10,6 +10,7 @@
 \documentclass[preprint,12pt,authoryear]{elsarticle}
 
 %% ── Packages ──────────────────────────────────────────────────────────────
+\usepackage{caption}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{graphicx}
 \usepackage{booktabs}
@@ -22,7 +23,6 @@
 \usepackage{microtype}
 \usepackage{siunitx}
 \usepackage{bm}
-\usepackage{caption}
 \usepackage{subcaption}
 \usepackage{enumitem}
 \usepackage{algorithm}
@@ -30,6 +30,12 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[english]{babel}
+
+\usepackage[labelfont=bf, labelsep=period]{caption}
+\renewcommand{\figurename}{Figure}  % Pour les légendes
+\usepackage{cleveref}
+\crefname{figure}{Fig.}{Figs.}      % Pour les références dans le texte
+\Crefname{figure}{Fig.}{Figs.}
 
 %% Line numbers (required for review)
 \linenumbers
@@ -64,36 +70,19 @@
        of Steel Moment Frames with Rotational Friction Dampers}
 
 \author[uaq]{E.~Ponce}
-\author[i2m]{H.~Yañez-Godoy\corref{cor1}}
+\author[i2m]{H.~Yáñez-Godoy\corref{cor1}}
 \cortext[cor1]{Corresponding author.}
 \ead{humberto.yanez-godoy@u-bordeaux.fr}
 
 \address[uaq]{Universidad Autónoma de Querétaro, Facultad de Ingeniería,
               Cerro de las Campanas s/n, Querétaro, Mexico}
-\address[i2m]{Arts et Metiers Institute of Technology, University of Bordeaux,
-              Centre National de la Recherche Scientifique (CNRS),
-              Bordeaux INP, I2M, UMR 5295, 33400 Talence, France}
+\address[i2m]{Univ. Bordeaux, Arts et Metiers Institute of Technology,
+              CNRS,
+              Bordeaux INP, I2M, UMR 5295, F-33400 Talence, France}
 
 %%─── Abstract ───────────────────────────────────────────────────────────────
 \begin{abstract}
-This work uses machine learning (ML) to optimize rotational friction dampers
-(RFDs) in steel moment-resisting frames (SMRFs). One thousand shear-type
-frames (3--20~stories, fundamental period $T_1 \in [0.3,\,3.0]$\,s) were
-generated via Latin Hypercube Sampling (LHS). For each frame, 50 RFD
-configurations were evaluated under 8 real seismic records, producing
-$\approx$434,000 nonlinear simulations solved with the Non-Smooth Dynamics
-(NSD) method. Seismic performance is measured by the index $CR_2$, which
-combines peak displacement, peak acceleration, and base shear normalized
-to the uncontrolled structure. Three statistics are computed per
-configuration: median (typical), P10 (favorable), and P90 (conservative).
-Four regression models were trained with GroupKFold cross-validation.
-Ensemble models outperformed linear baselines by up to 49\,\%: XGBoost
-achieved $\Rsq = 0.92$ and $0.93$ for $\CR{med}$ and $\CR{P10}$,
-while Random Forest attained $\Rsq = 0.84$ for $\CR{P90}$. The damper coverage density
-$\etad = \nd/\np$ is the dominant design variable ($\rho = -0.73$ with
-$CR_2$). Eighty percent of the maximum improvement is reached at
-$\etad \approx 0.85$ for mid-rise and high-rise frames (6--20~stories),
-establishing a practical diminishing-returns threshold.
+	This study introduces a novel computational framework combining Non-Smooth Dynamics (NSD) and machine learning (ML) to optimize rotational friction dampers (RFDs) in steel moment-resisting frames (SMRFs). The NSD-LCP-PSOR method reformulates friction as a Linear Complementarity Problem (LCP), eliminating tuning parameters while preserving Coulomb's exact friction law. A dataset of $\approx$434,000 nonlinear time-history simulations was generated for 1,000 shear-type frames (3-20 stories) with fundamental periods $T_1$ (0.3-3.0s) under 50 RFD configurations and eight real seismic records. Seismic performance was quantified using the composite index $CR_2$, which normalizes peak inter-story drift, peak floor acceleration, and base shear to the uncontrolled structure's response. ML regression models (XGBoost and Random Forest), trained via GroupKFold cross-validation, reduced prediction error by 49\% compared to linear baselines, achieving coefficients of determination ($\Rsq$) of 0.907 and 0.927 for median and 10th-percentile $CR_2$ values. The damper coverage density ($\etad=\nd/\np$, where $\nd$ is the number of dampers and $\np$ the potential locations) emerged as the dominant design variable ($\rho=-0.73$ with $CR_2$), with 80\% of maximum performance improvement achieved at $\etad\approx0.85$ for mid- and high-rise frames (6-20 stories), establishing a practical diminishing-returns threshold. The resulting ML surrogate models enable simulation-free optimization, providing robust design criteria across diverse structures and seismic inputs. Unlike prior single-structure studies, this framework generalizes recommendations: $\etad\geq0.60$ prevents structural damage while $\etad\geq0.85$ ensures serviceability by controlling displacements and accelerations. The recommendations demonstrate high robustness, with 67.9\% of structures requiring identical damper configurations under both median and 90th-percentile scenarios. Future work will extend the NSD-LCP-PSOR method to include soil-structure interaction and three-dimensional frame modeling.
 \end{abstract}
 
 \begin{keyword}
@@ -109,519 +98,373 @@ Gradient Boosting Regression
 \label{sec:intro}
 %%═══════════════════════════════════════════════════════════════════════════
 
-Rotational friction dampers (RFDs) improve the seismic performance of steel
-frames by dissipating energy through friction
-\citep{pall_friction_1980, pall_response_1982, jaisee_state---art_2021}.
-\citet{Mualla2002} investigated them experimentally, showing dissipation of
-up to 89\,\% of the input energy in scaled tests. For an optimized case
-under the El~Centro NS record, reductions of 89\,\% in lateral displacement
-and 41\,\% in base shear were reported relative to the uncontrolled system.
+Earthquake-resistant design of steel structures relies on effective energy dissipation mechanisms to mitigate seismic demands. Rotational friction dampers (RFDs) offer a promising solution by redirecting seismic energy from structural members to non-structural frictional mechanisms. This approach protects primary elements while improving the predictability of seismic behavior compared to conventional systems where energy is dissipated through structural damage \citep{pall_friction_1980, pall_response_1982, jaisee_state---art_2021, de_domenico_editorial_2020}. Experimental studies have demonstrated their potential, showing up to 89\% energy dissipation and reductions of 89\% in lateral displacement and 41\% in base shear under optimized configurations \citep{Mualla2002}.
 
-In conventional frames, seismic energy is dissipated by damaging structural
-members. RFDs redirect that energy to a non-structural frictional mechanism,
-protecting the primary elements and producing more predictable seismic
-behavior \citep{de_domenico_editorial_2020}.
+The optimal design of RFDs presents significant challenges due to the complex, nonlinear nature of dry friction and the high computational cost of traditional optimization methods. Current approaches have notable limitations. Simplified models fail to accurately capture stick-slip transitions \citep{lee_seismic_2025, Jarrahi2020jbe}, while metaheuristic optimization algorithms remain computationally expensive and limited to specific cases \citep{moreschi_design_2003, moghaddam_optimal_2022, Jarrahi2020jbe, Jarrahi2020sdee}.
 
-Modeling dry friction is challenging because the behavior switches abruptly
-between slip and stick. Some studies use simplified models (bilinear or
-equivalent damping) that do not capture these transitions well
-\citep{lee_seismic_2025, Jarrahi2020jbe}. \citet{Namorado2022} proposed
-formulating RFDs with the Non-Smooth Dynamics (NSD) method, which treats
-Coulomb friction as a differential-algebraic inclusion. This allows the
-stick and slip states to be represented directly without approximation.
+This study introduces an integrated simulation and machine learning framework to address these challenges. The proposed approach builds upon the Non-Smooth Dynamics (NSD) method, which formulates Coulomb friction as a differential-algebraic inclusion to directly represent stick-slip behavior without approximation \citep{Namorado2022}. A novel NSD-LCP-PSOR method reformulates the friction problem as a Linear Complementarity Problem (LCP) solved via Projected Successive Over-Relaxation (PSOR). This formulation transforms the friction problem into a system of linear equations with complementarity constraints, using an iterative solver that converges robustly for large-scale systems. The method eliminates case-specific tuning parameters while preserving the exact Coulomb friction law, and scales efficiently to thousands of configurations.
 
-Several studies have optimized dampers using metaheuristic algorithms
-\citep{moreschi_design_2003, moghaddam_optimal_2022, miguel_simultaneous_2016,
-ontiveros-perez_reliability-based_2019}. \citet{Jarrahi2020jbe} and
-\citet{Jarrahi2020sdee} optimized RFDs with energy-based criteria, finding
-that adding more devices becomes ineffective beyond approximately 60\,\%
-coverage. However, these studies rely on a single seismic record and a
-specific structure, limiting the applicability of their results to buildings
-of different heights.
+A comprehensive dataset of approximately 434,000 nonlinear time-history analyses was generated, covering 1,000 shear-type frames (3-20 stories) under 50 RFD configurations and eight real seismic records. Seismic performance was quantified using the composite index $CR_2$, which normalizes peak inter-story drift, peak floor acceleration, and base shear to the uncontrolled structure's response.
 
-Machine learning (ML) enables the construction of models that predict
-seismic performance at a computational cost far lower than nonlinear
-analysis \citep{Kazemi2022}. The RFD design space---combinations of
-location, count, and capacity of devices---is high-dimensional and exhibits
-nonlinear relationships with seismic response that analytical approaches
-cannot efficiently capture, making ML a suitable tool for this problem. A
-prior study by the research group \citep{Ponce2026} applied the NSD method
-to a 10-story frame under five seismic records, identifying a saturation
-point at 7~dampers and optimal friction moments of 350--450\KM, which
-motivated extending the analysis to a broader design space.
+Given the high-dimensional and nonlinear nature of the RFD design space, machine learning (ML) was employed to analyze this problem \citep{Kazemi2022}. The present work characterizes seismic response across a statistically representative design space, summarizing performance through the 10th-percentile, median, and 90th-percentile of $CR_2$. The resulting ML models (XGBoost and Random Forest) expose the response surface across the full design domain, enabling derivation of practical design criteria including a damper coverage density threshold of approximately 0.85 and an effective friction moment range.
 
-The present work addresses these limitations through an integrated simulation
-and learning framework. On the methodological side, the NSD formulation is
-extended to large-scale multi-degree-of-freedom frames by recasting the
-per-timestep friction problem as a Linear Complementarity Problem solved
-with Projected Successive Over-Relaxation (NSD-LCP-PSOR), which eliminates
-the case-specific tuning parameter of the original method and scales to
-thousands of configurations without approximating the friction law. On the
-scope side, rather than optimizing a single structure under a single record,
-the objective is to characterize how RFD design variables---damper count,
-placement, and friction moment---govern seismic response across a
-statistically representative space: 1,000 structures spanning three to
-twenty stories and eight real seismic records, summarized through the
-10th-percentile, median, and 90th-percentile of $CR_2$. The resulting
-simulation dataset is encoded in cross-validated ML surrogate models that
-expose the response surface across the full design domain, enabling the
-derivation of practical design criteria---principally a coverage density
-threshold and an effective friction moment range---without requiring
-additional nonlinear analyses.
-
-The paper is organized as follows: \cref{sec:theory} presents the
-theoretical background; \cref{sec:method} describes the methodology;
-\cref{sec:results} reports the results; \cref{sec:discussion} discusses the
-implications; and \cref{sec:conclusions} summarizes the conclusions.
-
+The paper is organized as follows: \cref{sec:theory} presents the theoretical background; \cref{sec:method} describes the methodology; \cref{sec:results} reports the results; \cref{sec:discussion} discusses the implications; and \cref{sec:conclusions} summarizes the conclusions.
 %%═══════════════════════════════════════════════════════════════════════════
 \section{Theoretical Background}
 \label{sec:theory}
 %%═══════════════════════════════════════════════════════════════════════════
 
-\subsection{Rotational Friction Damper}
-\label{sec:theory:afr}
+\subsection{Rotational Friction Dampers (RFDs)}
+\label{sec:theory:rfd}
 
-RFDs dissipate energy through sliding between contact surfaces. The device
-proposed by \citet{Mualla2002} consists of a central plate, two side plates,
-friction material discs, and a pre-tensioned bolt. The bolt compression
-activates friction and produces stable hysteretic cycles whose area equals
-the dissipated energy. \cref{fig:rfd} shows the components.
+RFDs dissipate seismic energy through controlled sliding between contact surfaces. The device configuration proposed by \citet{Mualla2002} comprises a central rotating plate, two side plates, friction material discs, and a pre-tensioned bolt assembly (\cref{fig:rfd}). The bolt-induced compression generates stable frictional forces that produce hysteretic cycles whose enclosed area directly corresponds to the dissipated energy.
 
-A hysteretic cycle is the closed loop traced in the force--displacement
-plane during a loading--unloading sequence; its enclosed area represents the
-energy dissipated in that cycle. In conventional steel members that yield
-under repeated seismic loading, these loops typically degrade: peak strength
-and enclosed area diminish with each cycle as a result of accumulated
-damage, a behavior known as pinching or strength degradation
-\citep{chopra_dynamics_2015}. The RFD, governed by Coulomb's law, produces
-instead a rectangular loop whose dimensions are set solely by the friction
-moment $\Mf$ and the imposed displacement; because the friction mechanism
-does not accumulate damage, the loop shape and area remain identical across
-all cycles. \cref{fig:histeresis} contrasts both behaviors.
+A hysteretic cycle represents the force--displacement relationship during a complete loading--unloading sequence, with its enclosed area quantifying the energy dissipated in each cycle (\cref{fig:histeresis}). Conventional steel members exhibiting inelastic behavior under cyclic seismic loading typically demonstrate degrading hysteretic responses: progressive reductions in peak strength and enclosed area occur due to accumulated damage, a phenomenon known as cyclic deterioration or pinching \citep{chopra_dynamics_2015} (\cref{fig:histeresis}b). 
+
+In contrast, RFDs governed by Coulomb's friction law produce stable, rectangular hysteretic loops (\cref{fig:histeresis}a). The loop dimensions remain constant across cycles because the friction mechanism does not degrade, with the area determined solely by the friction moment $\Mf$ and the imposed displacement amplitude.
 
 \begin{figure}[htbp]
-    \centering
-    \begin{subfigure}[b]{0.48\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{rfd_componentes.png}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.48\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{rfd_mecanismo.png}
-    \end{subfigure}
-    \caption{Rotational Friction Damper (RFD). The left panel shows the
-             physical configuration of the device---central plate, side plates,
-             friction discs, pre-tensioned bolt, and washers
-             \citep{Mualla2002}---; the right panel illustrates the activation
-             mechanism: lateral story drift induces rotation in the device,
-             dissipating energy through friction.}
-    \label{fig:rfd}
+	\centering
+	\begin{subfigure}[b]{0.4\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{rfd_componentes.png}
+		\caption{Physical configuration}
+		\label{fig:rfd:components}
+	\end{subfigure}
+	\hfill
+	\begin{subfigure}[b]{0.5\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{rfd_mecanismo.png}
+		\caption{Activation mechanism}
+		\label{fig:rfd:mechanism}
+	\end{subfigure}
+	\caption{Rotational Friction Damper (RFD) \citep{Mualla2002}: (\subref{fig:rfd:components}) Shows the device components: central plate, side plates, friction discs, pre-tensioned bolt, and washers. (\subref{fig:rfd:mechanism}) Illustrates the energy dissipation mechanism where lateral story drift induces rotational movement, generating frictional forces.}
+	\label{fig:rfd}
 \end{figure}
 
 \begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth]{figs/F0_hysteresis_comparison.png}
-\caption{Comparison of hysteretic cycle types in the force--displacement
-plane. Panel~(a) shows the stable, rectangular cycle produced by Coulomb
-friction (RFD): the enclosed area---equal to the dissipated energy---remains
-constant across successive cycles because the friction mechanism does not
-accumulate damage. Panel~(b) shows a degrading and pinching cycle typical of
-yielding structural members: the area decreases with each cycle as strength
-and stiffness deteriorate due to accumulated damage.}
-\label{fig:histeresis}
+	\centering
+	\includegraphics[width=0.90\linewidth]{figs/F0_hysteresis_comparison.png}
+	\caption{Comparison of hysteretic behaviors. \textbf{(a)} Stable RFD cycle: the rectangular shape and enclosed area remain constant across cycles due to the non-degrading friction mechanism. \textbf{(b)} Degrading structural cycle: progressive reduction in strength and stiffness occurs with each cycle due to accumulated damage.}
+	\label{fig:histeresis}
 \end{figure}
 
-The central plate connects to the beam and the side plates to the brace.
-When the frame drifts laterally during an earthquake, the relative inter-story
-movement rotates the device and generates friction, transferring to the RFD
-the energy that would otherwise damage the frame \citep{kim_use_2011}.
+The RFD's central plate connects to the beam while the side plates attach to the brace or column. During seismic events, relative inter-story drift causes rotation of the central plate against the friction discs, dissipating energy that would otherwise induce structural damage \citep{kim_use_2011}. This mechanism effectively decouples energy dissipation from the primary structural system.
 
-Capacity is expressed as the maximum friction moment $\Mf$. The equivalent
-lateral force transmitted is:
+The damper's capacity is characterized by its maximum $\Mf$, which determines the energy dissipation capacity. The equivalent lateral force $f_\mathrm{RFD}$ transmitted to the frame by the RFD is given by:
 \begin{equation}
-    f_{\mathrm{RFD}} = \frac{\Mf}{\ha},
-    \label{eq:Fafr}
+	f_{\mathrm{RFD}} = \frac{\Mf}{\ha},
+	\label{eq:Fafr}
 \end{equation}
-where $\ha$ is the brace lever arm. \citet{Mualla2002} verified that the
-behavior is frequency-independent in the 2--7\,Hz range, justifying the use
-of Coulomb's law.
+where $\ha$ represents the lever arm distance from the bolt axis to the point of force application. Experimental studies by \citet{Mualla2002} confirmed that the RFD behavior remains frequency-independent within the 2--7\,Hz range, validating the application of Coulomb's friction law for seismic energy dissipation modeling.
 
 \subsection{Dynamic Analysis with Non-Smooth Dynamics}
-\label{sec:theory:dns}
+\label{sec:theory:nsd}
 
-Coulomb friction switches abruptly between slip and stick states, which
-conventional time integrators handle poorly \citep{chopra_dynamics_2015}.
-Two families of workarounds are common in the literature: regularization
-approaches replace the discontinuous sign function with a smooth surrogate
-(e.g., a bilinear or hyperbolic tangent approximation), and equivalent-damping
-approaches substitute the friction device with a viscous dashpot of matched
-energy dissipation \citep{lee_seismic_2025, Jarrahi2020jbe}. Both introduce
-modeling error at the slip--stick transition and require case-specific
-calibration, which becomes impractical at the scale of ${\approx}434{,}000$
-simulations pursued here.
+The discontinuous nature of Coulomb friction, characterized by abrupt transitions between stick and slip states, presents significant challenges for conventional time integration schemes \citep{chopra_dynamics_2015}. Traditional numerical approaches typically employ one of two workarounds, each with substantial limitations. Regularization approaches replace the discontinuous sign function with smooth surrogates, such as bilinear or hyperbolic tangent approximations \citep{lee_seismic_2025}. 
 
-The Non-Smooth Dynamics (NSD) method of \citet{Namorado2022} avoids these
-approximations entirely by reformulating the friction law as a
-differential-algebraic inclusion and solving the resulting complementarity
-problem at each timestep. This has two direct advantages for the present
-study. First, \textit{theoretical fidelity}: the rectangular hysteretic loop
-and the sharp slip--stick transitions of Coulomb friction are reproduced
-exactly, without tuning parameters, ensuring that the dataset fed to the
-ML models reflects the true nonlinear physics rather than a surrogate of a
-surrogate. Second, \textit{computational scalability}: once the per-step
-problem is cast as a Linear Complementarity Problem (LCP) solved with
-Projected Successive Over-Relaxation (PSOR), each timestep requires only a
-small number of sequential scalar updates (typically fewer than 20
-iterations to convergence), making the method fast enough to be applied to
-thousands of structural configurations without incurring the overhead of
-general nonlinear solvers.
+While facilitating numerical integration, these methods introduce artificial compliance at the slip--stick transition, failing to capture the true abrupt nature of Coulomb friction. Equivalent-damping approaches, on the other hand, substitute the friction device with a viscous dashpot of matched energy dissipation \citep{Jarrahi2020jbe}. This simplification neglects the rate-independent nature of friction and cannot reproduce the characteristic rectangular hysteretic behavior.
 
-\subsubsection*{Friction law}
+Both approaches introduce modeling error at the slip--stick transition and require case-specific calibration, making them impractical for large-scale studies such as the ${\approx}434{,}000$ simulations conducted in this work. To address these limitations, this study employs the NSD method proposed by \citet{Namorado2022}, which reformulates the friction law as a differential-algebraic inclusion. This approach solves the resulting complementarity problem at each timestep, offering two direct advantages for the present study.
 
-For an RFD between floors $i$ and $i+1$, the resisting moment follows
-Coulomb's law:
+First, the NSD method provides theoretical fidelity by exactly reproducing the rectangular hysteretic loops and sharp slip--stick transitions of Coulomb friction without tuning parameters. This ensures that the simulation dataset accurately represents the true nonlinear physics, providing high-quality training data for the subsequent machine learning models. 
+
+Second, the method achieves computational efficiency by casting the per-timestep problem as a Linear Complementarity Problem (LCP) solved with Projected Successive Over-Relaxation (PSOR). Each timestep requires only a small number of sequential scalar updates, typically converging in fewer than 20 iterations, making the method fast enough to be applied to thousands of structural configurations.
+
+The NSD-LCP-PSOR approach therefore offers an ideal compromise between physical precision and computational efficiency, making it particularly well-suited for generating the extensive simulation datasets necessary for the machine learning applications developed in this study.
+
+The following subsections present a detailed examination of the method's theoretical and computational foundations. The analysis begins with a formal definition of the friction law governing RFD behavior. The equations of motion for structural systems equipped with RFDs are then established. This is followed by a transformation of Coulomb's friction law into a LCP. The subsequent section describes the solution method employing PSOR, along with a complete description of the NSD-LCP-PSOR procedure. Finally, the extension of this method to large-scale multi-degree-of-freedom (MDOF) simulations is addressed, enabling efficient analysis of the complex structural systems considered in this research.
+
+\subsubsection{Friction Law}
+\label{sec:theory:friction_law}
+
+For an RFD connecting adjacent floors $i$ and $i+1$, its resisting moment $M_{\mathrm{RFD},i}$ follows Coulomb's friction law:
+
 \begin{equation}
-    M_{\mathrm{RFD},i} \in -\Mf \cdot \operatorname{Sign}\!\left(\dot{\varphi}_i\right),
-    \label{eq:coulomb}
+	M_{\mathrm{RFD},i} \in -\Mf \cdot \operatorname{Sign}\left(\dot{\varphi}_i\right),
+	\label{eq:coulomb}
 \end{equation}
-with the set-valued sign function:
-\begin{equation}
-    \operatorname{Sign}(v) =
-    \begin{cases}
-        \{+1\}    & \text{if } v > 0, \\
-        [-1,\,+1] & \text{if } v = 0, \\
-        \{-1\}    & \text{if } v < 0.
-    \end{cases}
-    \label{eq:sign}
-\end{equation}
-When the device slips, the moment equals $\pm\Mf$. At rest, it can take any
-value in $[-\Mf,\,+\Mf]$ according to equilibrium.
+where $\Mf$ represents the maximum friction moment defining the damper's capacity, and $\dot{\varphi}_i$ denotes the relative angular velocity between floors $i$ and $i+1$. The set-valued sign function is defined as:
 
-\subsubsection*{Equation of motion}
-
-The $\np$-story system with $n_a$ dampers follows the differential inclusion
-\citep{Namorado2022}:
 \begin{equation}
-    \bm{M}\,\ddot{\bm{u}} + \bm{C}\,\dot{\bm{u}} + \bm{K}\,\bm{u}
-    \in -\bm{M}\,\bm{r}\,\ddot{x}_g(t) + \bm{H}\,\bm{Q}_f(t),
-    \label{eq:eom}
-\end{equation}
-where $\bm{M}$, $\bm{C}$, and $\bm{K}$ are the mass, damping, and stiffness
-matrices; $\bm{u}$ is the ground-relative displacement vector; $\ddot{x}_g(t)$
-is the ground acceleration; $\bm{r}$ is the seismic influence vector
-(unit vector for a shear frame); $\bm{H}$ maps which floors contain dampers;
-and $\bm{Q}_f(t)$ is the set-valued friction force vector arising from
-Coulomb's law. In the discrete form, the set-valued force is
-replaced by impulses $\bm{\lambda}_{k+1}$ computed at each step via a Linear
-Complementarity Problem (LCP, Eq.~\ref{eq:lcp}):
-\begin{equation}
-    \bm{M}\,\ddot{\bm{u}} + \bm{C}\,\dot{\bm{u}} + \bm{K}\,\bm{u}
-    = -\bm{M}\,\bm{r}\,\ddot{x}_g(t) + \bm{H}\,\bm{\lambda}_{k+1}/\Delta t.
-    \label{eq:eom_disc}
+	\operatorname{Sign}(v) =
+	\begin{cases}
+		\{+1\}    & \text{if } v > 0, \\
+		[-1,+1]  & \text{if } v = 0, \\
+		\{-1\}    & \text{if } v < 0.
+	\end{cases}
+	\label{eq:sign}
 \end{equation}
 
-\subsubsection*{From Coulomb friction to a Linear Complementarity Problem}
+Equation~\eqref{eq:coulomb} describes the relationship between the resisting moment and the angular velocity. When the device is slipping ($\dot{\varphi}_i \neq 0$), the resisting moment takes a constant value of $\pm\Mf$, depending on the direction of rotation. This corresponds to the kinetic friction regime where the frictional force opposes the motion with a constant magnitude.
 
-The discrete equations of motion (Eq.~\ref{eq:eom_disc}) and Coulomb's law
-(Eq.~\ref{eq:coulomb}) must be satisfied simultaneously at each timestep.
-Jointly, they impose a condition on the friction impulse $\lambda_r$ of each
-damper that cannot be expressed as a standard equation: at every step,
-exactly one of two mutually exclusive physical states holds.
+When the device is at rest ($\dot{\varphi}_i = 0$), the resisting moment can take any value within the interval $[-\Mf, +\Mf]$, as defined by the set-valued nature of the sign function in Equation~\eqref{eq:sign}. This behavior corresponds to the static friction regime where the frictional force adjusts to maintain equilibrium until the applied moment exceeds the friction capacity.
+
+This formulation accurately captures the non-smooth nature of Coulomb friction, including the abrupt transition between stick and slip states without any smooth approximation.
+
+\subsubsection{Equation of Motion}
+\label{sec:theory:eom}
+
+The dynamic behavior of a $\np$-story structural system equipped with $n_a$ RFDs is governed by the following differential inclusion \citep{Namorado2022}:
+
+\begin{equation}
+	\bm{M}\,\ddot{\bm{u}} + \bm{C}\,\dot{\bm{u}} + \bm{K}\,\bm{u}
+	\in -\bm{M}\,\bm{r}\,\ddot{x}_g(t) + \bm{H}\,\bm{Q}_f(t),
+	\label{eq:eom}
+\end{equation}
+where: $\bm{M}$, $\bm{C}$, and $\bm{K}$ represent the mass, damping, and stiffness matrices of the structure, respectively; $\bm{u}$ is the vector of ground-relative displacements; $\ddot{x}_g(t)$ denotes the ground acceleration time history; $\bm{r}$ is the seismic influence vector (a unit vector for shear-type frames); $\bm{H}$ is a mapping matrix that identifies which floors contain dampers; $\bm{Q}_f(t)$ is the set-valued friction force vector, derived from Coulomb's friction law.
+
+For numerical implementation, the continuous-time differential inclusion is transformed into a discrete-time formulation. The set-valued friction forces are replaced by impulse forces $\bm{\lambda}_{k+1}$, computed at each time step through a LCP. The discrete equation of motion becomes:
+
+\begin{equation}
+	\bm{M}\,\ddot{\bm{u}} + \bm{C}\,\dot{\bm{u}} + \bm{K}\,\bm{u}
+	= -\bm{M}\,\bm{r}\,\ddot{x}_g(t) + \bm{H}\,\bm{\lambda}_{k+1}/\Delta t.
+	\label{eq:eom_disc}
+\end{equation}
+
+\subsubsection{From Coulomb Friction to a Linear Complementarity Problem (LCP)}
+\label{sec:theory:lcp}
+
+The discrete equations of motion (Eq.~\ref{eq:eom_disc}) and Coulomb's friction law (Eq.~\ref{eq:coulomb}) must be satisfied simultaneously at each timestep. This simultaneous satisfaction poses a fundamental challenge in computational mechanics: unlike standard dynamic systems where forces can be determined explicitly, the friction impulse $\lambda_r$ for each damper cannot be expressed through a conventional equation. This difficulty arises because Coulomb friction exhibits a non-smooth, set-valued force-velocity relationship that cannot be described by a single-valued function.
+
+At every time increment, the physical behavior of each damper must conform to exactly one of two mutually exclusive states:
 
 \begin{itemize}
-    \item \textit{Slip state.} The contact surfaces are sliding. The impulse
-    saturates at its physical bound, $|\lambda_r| = F^{\lim}_r \equiv
-    \Mf\,\Delta t / \ha$, and the residual relative velocity at the device
-    is nonzero, determined entirely by the structural motion.
+\item \textit{Slip state}: When the contact surfaces are sliding relative to each other, the friction impulse reaches its maximum physical capacity:
+\[ |\lambda_r| = F^{\lim}_r \equiv \frac{\Mf\,\Delta t}{\ha} \]
+In this state, the relative velocity at the device is non-zero and is entirely determined by the structural motion. The friction force opposes the motion with its maximum possible magnitude, which is why the impulse reaches its bound $F^{\lim}_r$.
 
-    \item \textit{Stick state.} The contact is locked; the relative velocity
-    at the device is zero. The impulse takes whatever value in
-    $[-F^{\lim}_r,\,+F^{\lim}_r]$ is needed to enforce equilibrium, and
-    it need not reach the bound.
+\item \textit{Stick state}: When the contact is locked and no relative motion occurs, the relative velocity at the device is zero. In this case, the friction impulse can take any value within the interval $[-F^{\lim}_r, +F^{\lim}_r]$ that is required to maintain static equilibrium. The impulse does not necessarily reach the bound, as it only needs to balance the other forces acting on the system.
 \end{itemize}
 
-This either/or structure---where a variable is either at its bound or the
-associated constraint is active as an equality, but not both simultaneously---
-is the defining property of a \textit{complementarity condition}. For the
-bilateral (tension--compression symmetric) case arising from Coulomb friction,
-finding the impulse vector $\bm{\lambda}$ that is consistent with both the
-equations of motion and the friction law is therefore equivalent to solving
-a Linear Complementarity Problem (LCP): find $\bm{\lambda}$ such that
+This mutually exclusive structure---where a variable must be either at its bound or satisfy an equality constraint, but never both simultaneously---is the defining characteristic of a \textit{complementarity condition}. For systems with bilateral Coulomb friction, determining the impulse vector $\bm{\lambda}$ that simultaneously satisfies both the equations of motion and the friction law is mathematically equivalent to solving an LCP:
+
 \begin{equation}
-    \bm{W}\bm{\lambda} + \bm{q} = \bm{0},
-    \quad |\lambda_r| \leq F^{\lim}_r \equiv \frac{\Mf\,\Delta t}{\ha},
-    \quad r = 1,\ldots,n_a.
-    \label{eq:lcp}
+	\bm{W}\bm{\lambda} + \bm{q} = \bm{0},
+	\quad |\lambda_r| \leq F^{\lim}_r \equiv \frac{\Mf\,\Delta t}{\ha},
+	\quad r = 1,\ldots,n_a.
+	\label{eq:lcp}
 \end{equation}
-The matrix $\bm{W} \in \mathbb{R}^{n_a \times n_a}$ and the vector
-$\bm{q} \in \mathbb{R}^{n_a}$ are assembled from the structural matrices
-and the free-velocity predictor (Stage~1). Specifically,
-$\bm{W} = (\bm{H}^{\top}\hat{\bm{M}}^{-1}\bm{H})\,\Delta t$ is the
-\textit{compliance matrix} of the damper degrees of freedom: the diagonal
-entry $W_{rr}$ is the local flexibility at device $r$ (how much a unit
-impulse at $r$ changes the relative velocity at $r$ itself), and the
-off-diagonal entry $W_{rs}$ quantifies the mechanical coupling between
-devices $r$ and $s$ through the structure. The right-hand side $q_r$ is
-the free inter-story relative velocity at device $r$, computed in Stage~1.
-Solving the LCP means finding the impulse $\bm{\lambda}$ that, when applied
-back to the structure, simultaneously brings all devices to their correct
-state---slip or stick---in a globally consistent manner.
 
-\subsubsection*{Solution by Projected Successive Over-Relaxation}
+The LCP formulation in Equation~\eqref{eq:lcp} involves two key components: the compliance matrix $\bm{W} \in \mathbb{R}^{n_a \times n_a}$ and the velocity vector $\bm{q} \in \mathbb{R}^{n_a}$. The compliance matrix $\bm{W}$ is constructed from the structural matrices and the free-velocity predictor as $\bm{W} = (\bm{H}^{\top}\hat{\bm{M}}^{-1}\bm{H})\,\Delta t$, where:
 
-The LCP (Eq.~\ref{eq:lcp}) is solved iteratively with Projected Successive
-Over-Relaxation (PSOR), a constrained extension of the classical
-Gauss-Seidel method. The fundamental idea is to decompose the
-$n_a$-dimensional problem into $n_a$ scalar sub-problems, each of which is
-solved in closed form, and to enforce the Coulomb constraint immediately
-after each update by projecting the result onto the admissible interval.
+\begin{itemize}
+	\renewcommand{\labelitemi}{---}
+	\item the diagonal entry $W_{rr}$ represents the local flexibility at device $r$, indicating how a unit impulse applied at device $r$ affects the relative velocity at the same device;
+	\item the off-diagonal entry $W_{rs}$ quantifies the mechanical coupling between devices $r$ and $s$, capturing how an impulse at one device influences the velocity at another device through the structural connectivity.
+\end{itemize}
 
-Each PSOR iteration cycles through the $n_a$ dampers in order. For damper
-$r$, assuming all other impulses $\lambda_s^{(i)}$ ($s \neq r$) are fixed
-at their current values, the $r$-th equation of the LCP can be solved
-analytically to give the \textit{unconstrained} impulse:
+The right-hand side vector $\bm{q}$ contains the free inter-story relative velocities at each device, computed during the prediction stage of the algorithm. Solving this LCP involves finding the impulse vector $\bm{\lambda}$ that, when applied to the structure, brings all devices to a physically consistent state---either slipping or sticking---while satisfying the global equilibrium of the system. This approach efficiently captures the non-smooth dynamics of Coulomb friction without approximation, making it particularly suitable for large-scale simulations.
+
+\subsubsection{Solution by Projected Successive Over-Relaxation (PSOR)}
+\label{sec:theory:psor}
+
+The LCP defined in Eq.~\ref{eq:lcp} is solved iteratively using the PSOR method, which represents a constrained extension of the classical Gauss-Seidel algorithm. The core idea behind PSOR is to decompose the $n_a$-dimensional LCP into a series of $n_a$ scalar subproblems, each of which can be solved analytically. After each update, the Coulomb friction constraint is immediately enforced by projecting the solution onto the admissible interval.
+
+The PSOR algorithm proceeds by cycling through each of the $n_a$ dampers in sequence. For damper $r$, while keeping all other impulses $\lambda_s^{(i)}$ ($s \neq r$) fixed at their current values, the $r$-th equation of the LCP is solved to obtain an unconstrained impulse:
+
 \begin{equation}
-    \tilde{\lambda}_r =
-    -\frac{q_r + \displaystyle\sum_{s \neq r} W_{rs}\,\lambda_s^{(i)}}{W_{rr}}.
-    \label{eq:gstep}
+	\tilde{\lambda}_r =
+	-\frac{q_r + \displaystyle\sum_{s \neq r} W_{rs}\,\lambda_s^{(i)}}{W_{rr}}.
+	\label{eq:gstep}
 \end{equation}
-This is the classical Gauss-Seidel step: it gives the exact solution for
-$\lambda_r$ that satisfies the $r$-th row of the system if friction were
-unconstrained. However, the result may violate the friction bound
-$F^{\lim}_r$, so it is immediately projected onto the admissible interval:
+
+This equation represents the classical Gauss-Seidel update step, providing the exact solution for $\lambda_r$ that would satisfy the $r$-th equation of the system if there were no friction constraints. However, this unconstrained solution may violate the physical bounds of the friction force. Therefore, it is immediately projected onto the admissible interval:
+
 \begin{equation}
-    \lambda_r^{(i+1)} = \max\!\left(-F^{\lim}_r,\;\min\!\left(F^{\lim}_r,\;
-    \tilde{\lambda}_r\right)\right).
-    \label{eq:psor}
+	\lambda_r^{(i+1)} = \max\!\left(-F^{\lim}_r,\;\min\!\left(F^{\lim}_r,\;
+	\tilde{\lambda}_r\right)\right).
+	\label{eq:psor}
 \end{equation}
-The projection is the key step where the physical state of each device is
-decided: if $|\tilde{\lambda}_r| > F^{\lim}_r$, the impulse is clamped to
-the bound (the device is slipping); if $|\tilde{\lambda}_r| \leq F^{\lim}_r$,
-the unconstrained value is accepted (the device is sticking). After the
-projection, $\lambda_r^{(i+1)}$ immediately replaces $\lambda_r^{(i)}$
-before moving to damper $r+1$. This \textit{successive} use of the most
-recently updated values---as opposed to the \textit{simultaneous} update of
-the Jacobi method---is what accelerates convergence.
 
-Convergence of PSOR for this class of bilateral LCP is theoretically
-guaranteed because $\bm{W}$ is positive semi-definite: it is a Gram-type
-matrix $\bm{H}^{\top}\hat{\bm{M}}^{-1}\bm{H}$ scaled by $\Delta t$, and
-$\hat{\bm{M}}^{-1}$ inherits the positive definiteness of the effective
-mass matrix \citep{Namorado2022}. In practice, the iteration is initialized
-with the warm-start $\bm{\lambda}^{(0)} = \bm{\lambda}_k$ (the solution
-from the previous timestep), which exploits the temporal continuity of the
-seismic response to reduce the number of iterations. Convergence is declared
-when $\|\bm{\lambda}^{(i+1)} - \bm{\lambda}^{(i)}\|_\infty \leq 10^{-6}$,
-with a safety cap of 20 iterations; in practice, fewer than five iterations
-suffice for the vast majority of timesteps.
+The projection step is crucial as it determines the physical state of each device:
 
-\subsubsection*{NSD-LCP-PSOR procedure}
+\begin{itemize}
+	\renewcommand{\labelitemi}{---}
+	\item if $|\tilde{\lambda}_r| > F^{\lim}_r$, the impulse is clamped to the bound, indicating that the device is in a slipping state;
+	\item if $|\tilde{\lambda}_r| \leq F^{\lim}_r$, the unconstrained value is retained, indicating that the device is in a sticking state.
+\end{itemize}
 
-The algorithm advances from step $k$ to $k+1$ in three stages; the complete
-pseudocode is listed in Algorithm~\ref{alg:nsd-lcp-psor}. Before entering
-the time loop, the matrices $\hat{\bm{M}}$, $\bm{A}$, and $\bm{W}$ are
-computed once:
+After projection, $\lambda_r^{(i+1)}$ immediately replaces $\lambda_r^{(i)}$ before proceeding to the next damper. This successive use of the most recently updated values, as opposed to the simultaneous updates of the Jacobi method, significantly accelerates convergence.
+
+The PSOR method is theoretically guaranteed to converge for this class of bilateral LCP because the matrix $\bm{W}$ is positive semi-definite. Specifically, $\bm{W}$ is a Gram-type matrix of the form $\bm{H}^{\top}\hat{\bm{M}}^{-1}\bm{H}$ scaled by $\Delta t$, where $\hat{\bm{M}}^{-1}$ inherits the positive definiteness of the effective mass matrix \citep{Namorado2022}.
+
+In practice, the iteration process is initialized with a warm-start using the solution from the previous timestep, $\bm{\lambda}^{(0)} = \bm{\lambda}_k$, which leverages the temporal continuity of the seismic response to reduce the number of required iterations. Convergence is declared when the infinity norm of the difference between successive iterations falls below a threshold of $10^{-6}$, i.e., $\|\bm{\lambda}^{(i+1)} - \bm{\lambda}^{(i)}\|_\infty \leq 10^{-6}$. A safety limit of 20 iterations is imposed, although in practice, convergence is typically achieved in fewer than five iterations for the vast majority of timesteps.
+
+\subsubsection{NSD-LCP-PSOR Procedure}
+\label{sec:theory:procedure}
+
+The NSD-LCP-PSOR algorithm advances the solution from time step $k$ to $k+1$ through a three-stage procedure, with the complete implementation detailed in Algorithm~\ref{alg:nsd-lcp-psor}. Before entering the time integration loop, several preliminary computations are performed to enhance computational efficiency:
+
 \begin{equation}
-    \hat{\bm{M}} = \bm{M} + \theta\Delta t\,\bm{C} + (\theta\Delta t)^{2}\bm{K},
-    \qquad
-    \bm{A}       = \bm{M} - \theta\Delta t\,\bm{C} - (\theta\Delta t)^{2}\bm{K},
-    \label{eq:Mhat}
+	\hat{\bm{M}} = \bm{M} + \theta\Delta t\,\bm{C} + (\theta\Delta t)^{2}\bm{K},
+	\qquad
+	\bm{A} = \bm{M} - \theta\Delta t\,\bm{C} - (\theta\Delta t)^{2}\bm{K},
+	\label{eq:Mhat}
 \end{equation}
 \begin{equation}
-    \bm{W} = \left(\bm{H}^{\top}\hat{\bm{M}}^{-1}\bm{H}\right)\Delta t,
-    \label{eq:W}
+	\bm{W} = \left(\bm{H}^{\top}\hat{\bm{M}}^{-1}\bm{H}\right)\Delta t.
+	\label{eq:W}
 \end{equation}
-and the initial conditions are set to
-$\bm{u}_0 = \dot{\bm{u}}_0 = \bm{\lambda}_0 = \bm{0}$.
 
-\textbf{Stage~1 — Free-velocity predictor.}
-The velocity that the system would reach at step $k+1$ in the absence of
-friction forces is computed as:
+The matrices $\hat{\bm{M}}$ and $\bm{A}$ are modified mass matrices used in the Newmark time integration scheme, where $\theta$ determines the time integration method (typically $\theta=0.5$ for the trapezoidal rule). The matrix $\bm{W}$ represents the compliance matrix for the damper degrees of freedom. Initial conditions are set to zero: $\bm{u}_0 = \dot{\bm{u}}_0 = \bm{\lambda}_0 = \bm{0}$.
+
+\subsubsection*{Stage 1: Free-Velocity Prediction}
+\label{sec:theory:free_velocity}
+
+At each time step, before considering the effect of friction forces, the algorithm first computes the velocities that the structural system would naturally attain due to inertia, elastic forces, and seismic excitation. This prediction phase, often referred to as the "free-flight" or "drift" phase, provides a baseline velocity field that will later be corrected to account for friction forces. The free velocities are calculated using:
+
 \begin{equation}
-    \dot{\bm{u}}^{\mathrm{free}} = \hat{\bm{M}}^{-1}
-    \!\left[
-        \bm{A}\,\dot{\bm{u}}_k
-        - \Delta t\,\bm{K}\bm{u}_k
-        - \theta\Delta t\,\bm{M}\!\left(\ddot{x}_{g,k+1}+\ddot{x}_{g,k}\right)\bm{r}
-    \right].
-    \label{eq:vfree}
+	\dot{\bm{u}}^{\mathrm{free}} = \hat{\bm{M}}^{-1}
+	\!\left[
+	\bm{A}\,\dot{\bm{u}}_k
+	- \Delta t\,\bm{K}\bm{u}_k
+	- \theta\Delta t\,\bm{M}\!\left(\ddot{x}_{g,k+1}+\ddot{x}_{g,k}\right)\bm{r}
+	\right].
+	\label{eq:vfree}
 \end{equation}
-The free inter-story relative velocity at each damper location $r$ is then:
+
+This equation represents a modified form of the Newmark time integration scheme, where: \(\hat{\bm{M}}^{-1}\) transforms forces into accelerations (or velocities in this context); \(\bm{A}\,\dot{\bm{u}}_k\) accounts for the current velocity state, modified by the time integration parameters; \(\Delta t\,\bm{K}\bm{u}_k\) represents the elastic restoring forces; $\theta\Delta t\,\bm{M}\!\left(\ddot{x}_{g,k+1}+\ddot{x}_{g,k}\right)\bm{r}$ captures the effect of ground motion excitation, where $\ddot{x}_{g}$ represent the ground accelerations.
+
+The resulting \(\dot{\bm{u}}^{\mathrm{free}}\) vector contains the velocities that each floor of the structure would have at time step \(k+1\) if no friction dampers were present. These velocities serve as a reference state from which the effect of friction will be determined in the subsequent stages.
+
+Next, the algorithm calculates the free inter-story relative velocities at each damper location using:
+
 \begin{equation}
-    q_r = \dot{u}^{\mathrm{free}}_{f_r} - \dot{u}^{\mathrm{free}}_{f_r - 1},
-    \qquad r = 1,\ldots,n_a,
-    \label{eq:qr}
+	q_r = \dot{u}^{\mathrm{free}}_{f_r} - \dot{u}^{\mathrm{free}}_{f_r - 1},
+	\qquad r = 1,\ldots,n_a,
+	\label{eq:qr}
 \end{equation}
-where $f_r$ is the floor index of the $r$-th damper.
+where $f_r$ denotes the floor index of the $r$-th damper. This calculation determines the relative velocity between adjacent floors where each damper is installed. These relative velocities, denoted by $q_r$, represent the motion that would occur at each damper location if the dampers were not present to resist the motion. They serve as input to the LCP in the next stage, where the actual friction forces will be determined to counteract these relative motions.
 
-\textbf{Stage~2 — Friction corrector (LCP-PSOR).}
-The vector $\bm{q}$ assembled in Stage~1 is used to form the LCP
-(Eq.~\ref{eq:lcp}), which is solved with PSOR
-(Eqs.~\ref{eq:gstep}--\ref{eq:psor}) as described in the preceding
-subsection. The iteration is initialized with the warm-start
-$\bm{\lambda}^{(0)} = \bm{\lambda}_k$ and yields the friction impulse
-$\bm{\lambda}_{k+1}$ that simultaneously satisfies the equations of motion
-and Coulomb's law.
+\subsubsection*{Stage 2: Friction Correction (LCP-PSOR)}
+\label{sec:theory:friction_correction}
 
-\textbf{Stage~3 — State update.}
-Once $\bm{\lambda}_{k+1}$ is known, the corrected velocity and displacement
-at step $k+1$ are obtained by:
+Having computed the free relative velocities $\bm{q}$ in Stage 1, the algorithm now addresses the core challenge: determining the friction forces required to bring the system into a physically consistent state. This is achieved by formulating and solving an LCP using the PSOR method.
+
+The LCP, defined in Eq.~\ref{eq:lcp}, is constructed using the relative velocity vector $\bm{q}$ as input. The solution process begins with a warm-start initialization, using the friction impulse vector from the previous timestep:
+$\bm{\lambda}^{(0)} = \bm{\lambda}_k$
+
+This initialization exploits the temporal continuity of the seismic response, significantly reducing the number of iterations required for convergence. The PSOR method iteratively solves the LCP to find the friction impulse vector $\bm{\lambda}_{k+1}$ that simultaneously satisfies: the equations of motion for the structural system and the Coulomb's friction law at each damper location.
+
+The resulting $\bm{\lambda}_{k+1}$ represents the impulse vector that, when applied to the structure, brings all dampers to a physically consistent state—either slipping or sticking—in a globally balanced manner.
+
+\subsubsection*{Stage 3: State Update}
+\label{sec:theory:state_update}
+
+With the friction impulses \(\bm{\lambda}_{k+1}\) determined in the previous stage, the algorithm proceeds to update the structural state variables for the next time step. This update phase incorporates the effect of friction forces on the system's dynamic response through two key equations:
+
 \begin{align}
-    \dot{\bm{u}}_{k+1} &= \dot{\bm{u}}^{\mathrm{free}}
-        + \Delta t\,\hat{\bm{M}}^{-1}\bm{H}\bm{\lambda}_{k+1}, \label{eq:vupdate}\\
-    \bm{u}_{k+1} &= \bm{u}_k
-        + \Delta t\!\left[(1-\theta)\,\dot{\bm{u}}_k
-                         + \theta\,\dot{\bm{u}}_{k+1}\right]. \label{eq:uupdate}
+	\dot{\bm{u}}_{k+1} &= \dot{\bm{u}}^{\mathrm{free}}
+	+ \Delta t\,\hat{\bm{M}}^{-1}\bm{H}\bm{\lambda}_{k+1}, \label{eq:vupdate}\\
+	\bm{u}_{k+1} &= \bm{u}_k
+	+ \Delta t\!\left[(1-\theta)\,\dot{\bm{u}}_k
+	+ \theta\,\dot{\bm{u}}_{k+1}\right]. \label{eq:uupdate}
 \end{align}
-The updated state $(\bm{u}_{k+1},\dot{\bm{u}}_{k+1})$ and impulse
-$\bm{\lambda}_{k+1}$ are stored and the algorithm advances to step $k+2$.
+
+Equation~\eqref{eq:vupdate} updates the velocity vector by adding the contribution of friction forces, where \(\Delta t\,\hat{\bm{M}}^{-1}\bm{H}\bm{\lambda}_{k+1}\) represents the change in velocity due to the friction impulses applied at each damper location. This term effectively corrects the free velocities computed in Stage 1 to account for the actual friction forces.
+
+Equation~\eqref{eq:uupdate} updates the displacement vector using a weighted average of velocities at time steps \(k\) and \(k+1\), where \(\theta\) determines the weight given to each time step.
+
+The updated state variables \((\bm{u}_{k+1},\dot{\bm{u}}_{k+1})\) and the impulse vector \(\bm{\lambda}_{k+1}\) are stored for use in the next time step. The time step \(\Delta t = 0.01\)\,s is selected to match the sampling interval of the seismic records, providing 30 points per period for the stiffest structures (\(T_1 = 0.3\)\,s) and satisfying the stability criterion \(\Delta t / T_1 \leq 0.10\) \citep{chopra_dynamics_2015}.
+
+Finally, the friction force at floor \(i\) is computed from the impulse using:
+\begin{equation}
+	f_{\mathrm{RFD},i} = \frac{\lambda_i}{\ha\,\Delta t}.
+	\label{eq:ffrict}
+\end{equation}
 
 \begin{algorithm}[t]
-\caption{NSD-LCP-PSOR for multi-degree-of-freedom (MDOF) frames with RFDs}
-\label{alg:nsd-lcp-psor}
-\begin{algorithmic}[1]
-\Require $\bm{M},\bm{C},\bm{K}$; $\bm{H}$, $\bm{F}^{\lim}$;
-         $\{\ddot{x}_{g,k}\}_{k=0}^{n}$; $\Delta t$, $\theta$
-\Ensure  $\{\bm{u}_k,\dot{\bm{u}}_k\}_{k=0}^{n}$
-\vspace{2pt}
-\State \textit{// Pre-computation (once)}
-\State $\hat{\bm{M}} \leftarrow \bm{M} + \theta\Delta t\,\bm{C} + (\theta\Delta t)^{2}\bm{K}$
-\State $\bm{A} \leftarrow \bm{M} - \theta\Delta t\,\bm{C} - (\theta\Delta t)^{2}\bm{K}$
-\State $\bm{W} \leftarrow \left(\bm{H}^{\top}\hat{\bm{M}}^{-1}\bm{H}\right)\Delta t$
-\State $\bm{u}_0 \leftarrow \bm{0}$;\quad $\dot{\bm{u}}_0 \leftarrow \bm{0}$;\quad
-       $\bm{\lambda}_0 \leftarrow \bm{0}$
-\vspace{2pt}
-\For{$k = 0, 1, \ldots, n-1$}
-    \State \textit{// Step 1 — free velocity}
-    \State $\bm{b}_k \leftarrow \bm{A}\,\dot{\bm{u}}_k
-            - \Delta t\,\bm{K}\bm{u}_k
-            - \theta\Delta t\,\bm{M}\!\left(\ddot{x}_{g,k+1}+\ddot{x}_{g,k}\right)\bm{r}$
-    \State $\dot{\bm{u}}^{\mathrm{free}} \leftarrow \hat{\bm{M}}^{-1}\bm{b}_k$
-    \State \textit{// Step 2 — free relative velocities}
-    \State $q_r \leftarrow \dot{u}^{\mathrm{free}}_{f_r} - \dot{u}^{\mathrm{free}}_{f_r-1}$
-           \quad for $r = 1,\ldots,n_a$
-    \State \textit{// Step 3 — PSOR corrector}
-    \State $\bm{\lambda}^{(0)} \leftarrow \bm{\lambda}_k$
-    \While{$\|\bm{\lambda}^{(i+1)} - \bm{\lambda}^{(i)}\|_\infty > \varepsilon$}
-        \For{$r = 1,\ldots,n_a$}
-            \State $\tilde{\lambda}_r \leftarrow
-                   -\!\left(q_r + \sum_{s \neq r} W_{rs}\lambda_s^{(i)}\right)\!\big/W_{rr}$
-            \State $\lambda_r^{(i+1)} \leftarrow
-                   \max\!\left(-F^{\lim}_r,\;\min\!\left(F^{\lim}_r,\;\tilde{\lambda}_r\right)\right)$
-        \EndFor
-    \EndWhile
-    \State $\bm{\lambda}_{k+1} \leftarrow \bm{\lambda}^{(*)}$
-           \quad\textit{($F^{\lim}_r = \Mf\Delta t/\ha$)}
-    \State \textit{// Step 4 — state update}
-    \State $\dot{\bm{u}}_{k+1} \leftarrow
-           \dot{\bm{u}}^{\mathrm{free}} +
-           \Delta t\,\hat{\bm{M}}^{-1}\bm{H}\bm{\lambda}_{k+1}$
-    \State $\bm{u}_{k+1} \leftarrow \bm{u}_k +
-           \Delta t\!\left[(1-\theta)\,\dot{\bm{u}}_k +
-                           \theta\,\dot{\bm{u}}_{k+1}\right]$
-\EndFor
-\end{algorithmic}
+	\caption{NSD-LCP-PSOR for multi-degree-of-freedom (MDOF) frames with RFDs}
+	\label{alg:nsd-lcp-psor}
+	\begin{algorithmic}[1]
+		\Require $\bm{M},\bm{C},\bm{K}$; $\bm{H}$, $\bm{F}^{\lim}$; $\{\ddot{x}_{g,k}\}_{k=0}^{n}$; $\Delta t$, $\theta$
+		\Ensure  $\{\bm{u}_k,\dot{\bm{u}}_k\}_{k=0}^{n}$
+		\vspace{2pt}
+		\State \textit{// Pre-computation (once)}
+		\State $\hat{\bm{M}} \leftarrow \bm{M} + \theta\Delta t\,\bm{C} + (\theta\Delta t)^{2}\bm{K}$
+		\State $\bm{A} \leftarrow \bm{M} - \theta\Delta t\,\bm{C} - (\theta\Delta t)^{2}\bm{K}$
+		\State $\bm{W} \leftarrow \left(\bm{H}^{\top}\hat{\bm{M}}^{-1}\bm{H}\right)\Delta t$
+		\State $\bm{u}_0 \leftarrow \bm{0}$;\quad $\dot{\bm{u}}_0 \leftarrow \bm{0}$;\quad $\bm{\lambda}_0 \leftarrow \bm{0}$
+		\vspace{2pt}
+		\For{$k = 0, 1, \ldots, n-1$}
+		\State \textit{// Stage 1: Free velocity prediction}
+		\State $\bm{b}_k \leftarrow \bm{A}\,\dot{\bm{u}}_k - \Delta t\,\bm{K}\bm{u}_k - \theta\Delta t\,\bm{M}\!\left(\ddot{x}_{g,k+1}+\ddot{x}_{g,k}\right)\bm{r}$
+		\State $\dot{\bm{u}}^{\mathrm{free}} \leftarrow \hat{\bm{M}}^{-1}\bm{b}_k$
+		\State \textit{// Stage 2: Free relative velocities}
+		\For{$r = 1,\ldots,n_a$}
+		\State $q_r \leftarrow \dot{u}^{\mathrm{free}}_{f_r} - \dot{u}^{\mathrm{free}}_{f_r-1}$
+		\EndFor
+		\State \textit{// Stage 3: PSOR corrector}
+		\State $\bm{\lambda}^{(0)} \leftarrow \bm{\lambda}_k$
+		\While{$\|\bm{\lambda}^{(i+1)} - \bm{\lambda}^{(i)}\|_\infty > \varepsilon$}
+		\For{$r = 1,\ldots,n_a$}
+		\State $\tilde{\lambda}_r \leftarrow -\!\left(q_r + \sum_{s \neq r} W_{rs}\lambda_s^{(i)}\right)\!\big/W_{rr}$
+		\State $\lambda_r^{(i+1)} \leftarrow \max\!\left(-F^{\lim}_r,\;\min\!\left(F^{\lim}_r,\;\tilde{\lambda}_r\right)\right)$
+		\EndFor
+		\EndWhile
+		\State $\bm{\lambda}_{k+1} \leftarrow \bm{\lambda}^{(*)}$
+		\quad\textit{($F^{\lim}_r = \Mf\Delta t/\ha$)}
+		\State \textit{// Stage 4: State update}
+		\State $\dot{\bm{u}}_{k+1} \leftarrow \dot{\bm{u}}^{\mathrm{free}} + \Delta t\,\hat{\bm{M}}^{-1}\bm{H}\bm{\lambda}_{k+1}$
+		\State $\bm{u}_{k+1} \leftarrow \bm{u}_k + \Delta t\!\left[(1-\theta)\,\dot{\bm{u}}_k + \theta\,\dot{\bm{u}}_{k+1}\right]$
+		\EndFor
+	\end{algorithmic}
 \end{algorithm}
 
-The time step $\Delta t = 0.01$\,s matches the sampling interval of the
-seismic records, avoiding interpolation. For the stiffest structures
-($T_1 = 0.3$\,s), this gives 30 points per period, satisfying the criterion
-$\Delta t / T_1 \leq 0.10$ \citep{chopra_dynamics_2015}. The friction force
-at floor $i$ is:
-\begin{equation}
-    f_{\mathrm{RFD},i} = \frac{\lambda_i}{\ha\,\Delta t}.
-    \label{eq:ffrict}
-\end{equation}
+\subsubsection{Extension of the NSD Method to Large-Scale MDOF Simulations}
+\label{sec:theory:extension}
 
-\subsubsection*{Extension of the NSD method to large-scale MDOF simulation}
+While the original NSD method proposed by \citet{Namorado2022} was validated for low- to mid-rise frames of one to five stories, the NSD-LCP-PSOR implementation presented in this study builds upon and extends previous work by \citet{Ponce2026}, which verified the method for a 10-story shear frame subjected to five real seismic records within a Monte Carlo probabilistic framework. The earlier study confirmed that the method produces hysteretic cycles and displacement responses consistent with established literature. To enable application to large-scale structures with up to twenty stories, three key adaptations were implemented:
 
-The method of \citet{Namorado2022} was validated for frames of one to five
-stories. The NSD-LCP-PSOR implementation developed here was previously
-verified in \citet{Ponce2026} for a 10-story shear frame subjected to five
-real seismic records under a Monte Carlo probabilistic framework, confirming
-hysteretic cycles and displacement responses consistent with the literature.
-Three adaptations were made to extend the method to frames of up to twenty
-stories.
+1. \textbf{Joint LCP Formulation:} Unlike the original sequential approach, the current implementation solves the impulses of all dampers simultaneously using the compliance matrix $\bm{W}$. This matrix captures the mechanical interactions between devices through the structure, enabling efficient solution of the coupled system. The joint formulation is particularly advantageous for large-scale systems, as it accounts for the global interaction between dampers and avoids the potential inaccuracies of sequential solutions.
 
-\textbf{Joint LCP.} The impulses of all dampers are solved simultaneously
-using the matrix $\bm{W}$, which captures how the devices interact through
-the structure.
+2. \textbf{Elimination of Tuning Parameters:} The original algorithm required a case-specific tuning parameter $\alpha$ to ensure convergence. By reformulating the problem as an LCP, this parameter is eliminated, significantly enhancing the robustness and generality of the method. This adaptation facilitates application to thousands of structural configurations without the need for parameter calibration, making the method particularly suitable for large-scale parametric studies.
 
-\textbf{No tuning parameter.} The original algorithm requires a case-specific
-parameter $\alpha$. Formulating the problem as an LCP eliminates this
-parameter, facilitating application to thousands of configurations.
-
-\textbf{Warm start.} The impulse from the previous step serves as the initial
-guess, reducing iterations because the response changes little between steps.
+3. \textbf{Warm-Start Initialization:} The solution from the previous time step is used as the initial guess for the current step. This warm-start approach exploits the temporal continuity of seismic responses, where structural behavior typically changes gradually between time steps. By providing a physically reasonable initial guess, this adaptation significantly reduces the number of iterations required for convergence, improving computational efficiency without compromising accuracy.
 
 \subsection{Seismic Performance Metric}
 \label{sec:theory:metrica}
 
-Several metrics have been used in the literature to assess the effectiveness
-of friction dampers. Energy-based criteria---such as the ratio of dissipated
-energy to input energy adopted by \citet{Jarrahi2020jbe, Jarrahi2020sdee}---
-measure how much of the seismic input is absorbed by the devices but do not
-directly reflect the structural demands experienced by the building or its
-occupants. Inter-story drift ratio is widely used for structural safety
-assessment \citep{chopra_dynamics_2015}, but ignores floor accelerations,
-which govern damage to non-structural components and equipment. Peak absolute
-acceleration alone does not capture displacement response. Single-criterion
-metrics therefore risk optimizing one demand parameter at the expense of
-others: a configuration that reduces displacement but amplifies floor
-accelerations---a known trade-off in passive control---would appear favorable
-under drift-only criteria while being detrimental under a broader assessment.
+Existing metrics for evaluating friction damper performance present limitations when assessing comprehensive structural behavior. Energy-based criteria, such as the dissipated-to-input energy ratio used by \citet{Jarrahi2020jbe,Jarrahi2020sdee}, quantify energy dissipation but fail to reflect structural demands. Inter-story drift ratios, while useful for structural safety assessment \citep{chopra_dynamics_2015}, neglect floor accelerations affecting non-structural components. Single-criterion metrics risk optimizing one parameter at the expense of others, potentially favoring configurations that reduce displacements while amplifying accelerations.
 
-To address this, the present study adopts the composite normalized index
-$CR_2$, which simultaneously integrates the three engineering demand
-parameters most relevant to building performance: peak displacement ($R_1$,
-governing structural safety and residual drift), peak absolute acceleration
-($R_2$, governing non-structural damage and occupant comfort), and peak base
-shear ($R_3$, governing foundation demands). Normalizing each component by
-the corresponding uncontrolled response makes $CR_2$ dimensionless and
-directly comparable across the 1,000 structures analyzed, regardless of
-their height, mass, or stiffness. The relationship between $CR_2$ and the
-energy-based threshold of \citet{Jarrahi2020sdee} is discussed in
-\cref{sec:discussion}.
+This study adopts the composite normalized index $CR_2$, integrating three key engineering demand parameters:
 
-The performance of each configuration is measured by normalized ratios with
-respect to the uncontrolled structure
-\citep{Namorado2022, Jarrahi2020jbe, Mualla2002}:
+\begin{itemize}
+	\item peak displacement ($R_1$): governing structural safety and residual drift;
+	\item peak absolute acceleration ($R_2$): governing non-structural damage and occupant comfort;
+	\item peak base shear ($R_3$): governing foundation demands.
+\end{itemize}
+
+Each component is normalized by the corresponding uncontrolled response, making $CR_2$ dimensionless and comparable across structures. Performance is measured using normalized ratios \citep{Namorado2022,Jarrahi2020jbe,Mualla2002}:
+
 \begin{equation}
-    R_1 = \frac{u_{\max}^{(\mathrm{c})}}{u_{\max}^{(0)}}, \quad
-    R_2 = \frac{\ddot{u}_{\max}^{(\mathrm{c})}}{\ddot{u}_{\max}^{(0)}}, \quad
-    R_3 = \frac{V_{\max}^{(\mathrm{c})}}{V_{\max}^{(0)}},
-    \label{eq:R_individual}
+	R_1 = \frac{u_{\max}^{(\mathrm{c})}}{u_{\max}^{(0)}}, \quad
+	R_2 = \frac{\ddot{u}_{\max}^{(\mathrm{c})}}{\ddot{u}_{\max}^{(0)}}, \quad
+	R_3 = \frac{V_{\max}^{(\mathrm{c})}}{V_{\max}^{(0)}},
+	\label{eq:R_individual}
 \end{equation}
 where superscript (c) denotes the controlled structure and (0) the
-uncontrolled one. Two composite indices are formed:
+uncontrolled one. Composite indices combine these ratios:
+
 \begin{equation}
-    CR_1 = \sqrt{R_1^2 + R_2^2}, \qquad
-    CR_2 = \sqrt{R_1^2 + R_2^2 + R_3^2}.
-    \label{eq:CR}
+	CR_1 = \sqrt{R_1^2 + R_2^2}, \qquad
+	CR_2 = \sqrt{R_1^2 + R_2^2 + R_3^2}.
+	\label{eq:CR}
 \end{equation}
-Without dampers, $CR_2 = \sqrt{3}$; lower values indicate improvement.
-Because $CR_2$ depends on the record, it is summarized over the eight
-accelerograms with three statistics \citep{Kazemi2022}:
+
+For uncontrolled structures, $CR_2 = \sqrt{3}$; lower values indicate improvement. Performance is summarized using three statistics across eight seismic records \citep{Kazemi2022}:
+
 \begin{align}
-    \CR{P10} &= Q_{0.10}\!\left(\{CR_2^{(k)}\}_{k=1}^{N_r}\right), \quad
-    \CR{med}  = Q_{0.50}\!\left(\{CR_2^{(k)}\}_{k=1}^{N_r}\right), \notag\\
-    \CR{P90} &= Q_{0.90}\!\left(\{CR_2^{(k)}\}_{k=1}^{N_r}\right).
-    \label{eq:CR2stats}
+	\CR{P10} &= Q_{0.10}\!\left(\{CR_2^{(k)}\}_{k=1}^{N_r}\right), \quad
+	\CR{med}  = Q_{0.50}\!\left(\{CR_2^{(k)}\}_{k=1}^{N_r}\right), \notag\\
+	\CR{P90} &= Q_{0.90}\!\left(\{CR_2^{(k)}\}_{k=1}^{N_r}\right).
+	\label{eq:CR2stats}
 \end{align}
 where $Q_p(\cdot)$ denotes the $p$-th sample quantile and $N_r = 8$ is the
-number of seismic records. The subscript stands for percentile (P).
+number of seismic records.
 
-The choice of these three statistics is grounded in both statistical and
-engineering reasoning. From a statistical standpoint, with $N_r = 8$ records
-the 10th and 90th percentiles correspond approximately to the 1st and 7th
-ranked values of the ordered sample---that is, to the record that excites
-the structure least effectively and the one that excites it most effectively
-within the available ensemble. They therefore define the practical extremes
-of record-to-record variability without being sensitive to a single outlier.
-The median ($Q_{0.50}$) provides the central estimate, robust to the
-asymmetry that often characterizes $CR_2$ distributions.
+The 10th, 50th, and 90th percentiles represent favorable, typical, and conservative scenarios respectively. The $\CR{P90}/\CR{P10}$ ratio measures robustness: values near unity indicate consistent performance across records.
 
 From an engineering standpoint, this three-statistic summary is consistent
 with the multi-stripe analysis framework recommended by FEMA~P-58
@@ -630,89 +473,44 @@ with the multi-stripe analysis framework recommended by FEMA~P-58
 to the damper (low-intensity or spectrally mismatched records where the
 uncontrolled structure also performs well), while high percentiles represent
 conservative conditions where demand is large and every unit of additional
-control capacity matters. Accordingly, $\CR{P10}$ is interpreted as the
-\emph{favorable} scenario, $\CR{med}$ as the \emph{typical} scenario, and
-$\CR{P90}$ as the \emph{conservative} scenario throughout this study.
-The ratio $\CR{P90}/\CR{P10}$ serves as a measure of design robustness:
-configurations for which this ratio is close to unity perform consistently
-across the record ensemble, while high ratios signal sensitivity to
-ground-motion selection.
+control capacity matters. 
 
 \subsection{Machine Learning for Structural Optimization}
 \label{sec:theory:ml}
 
-The goal is to learn a continuous mapping from design variables to seismic
-performance so that the response surface can be explored without running
-additional simulations. Because $CR_2$ is a real-valued engineering demand
-parameter rather than a class label, this is inherently a regression
-problem: a function $\hat{y} = f(\bm{x};\,\bm{\theta})$ is trained to
-predict each $CR_2$ statistic from the structural and damper configuration
-$\bm{x}$. Training minimizes the mean squared error (MSE):
+The goal is to learn a continuous mapping from design variables to seismic performance so that the response surface can be explored without running additional simulations. Because $CR_2$ is a real-valued engineering demand parameter rather than a class label, this is inherently a regression problem: a function $\hat{y} = f(\bm{x};\,\bm{\theta})$ is trained to predict each $CR_2$ statistic from the structural and damper configuration $\bm{x}$. Training minimizes the mean squared error (MSE):
+
 \begin{equation}
-    \mathcal{L}(\bm{\theta}) = \frac{1}{N}\sum_{i=1}^{N}
-    \bigl(y_i - f(\bm{x}_i;\,\bm{\theta})\bigr)^2.
-    \label{eq:mse}
+	\mathcal{L}(\bm{\theta}) = \frac{1}{N}\sum_{i=1}^{N}
+	\bigl(y_i - f(\bm{x}_i;\,\bm{\theta})\bigr)^2.
+	\label{eq:mse}
 \end{equation}
 
-The three targets---$\CR{P10}$, $\CR{med}$, and $\CR{P90}$---are predicted
-by independent models rather than a single multi-output model. This choice is
-deliberate: each percentile represents a structurally different relationship
-between design variables and seismic response. The 10th percentile captures
-favorable ground motion conditions, where a few critical decisions dominate;
-the median reflects typical seismic demand, governed by a broader set of
-variables; the 90th percentile represents the conservative scenario, where
-placement and friction moment effects are partially diluted by high input
-energy. Because these relationships differ, a shared model would
-systematically underfit at least one target. Independent models allow each
-to specialize in the structure of its own response surface, as confirmed by
-the divergent feature importance rankings in \cref{sec:results:importancia}.
+The three targets---$\CR{P10}$, $\CR{med}$, and $\CR{P90}$---are predicted by independent models rather than a single multi-output model. This choice is deliberate: each percentile represents a structurally different relationship between design variables and seismic response. The 10th percentile captures favorable ground motion conditions, where a few critical decisions dominate; the median reflects typical seismic demand, governed by a broader set of variables; the 90th percentile represents the conservative scenario, where placement and friction moment effects are partially diluted by high input energy. Because these relationships differ, a shared model would systematically underfit at least one target. Independent models allow each to specialize in the structure of its own response surface, as confirmed by the divergent feature importance rankings in \cref{sec:results:importancia}.
 
-Four algorithms are compared, deliberately spanning a complexity range from
-simple to complex. Linear Regression and Ridge Regression
-\citep{Hastie2009} serve as linear baselines: strong baseline performance
-would imply that the design space is approximately linear and a response
-surface could be characterized with far fewer simulations; poor performance
-reveals genuine nonlinearity---a conclusion that cannot be drawn without the
-comparison. Random Forest \citep{Breiman2001} introduces nonlinearity and
-interaction effects by averaging $n = 100$ trees trained on bootstrap
-replicates of the data. XGBoost \citep{Chen2016} builds trees sequentially,
-each correcting the residuals of its predecessors. The contrast between
-these two ensemble strategies is itself informative: boosted models tend to
-outperform when errors are structured (systematic functions of the input),
-while bagged models are more robust when errors are closer to noise.
+Four algorithms are compared, deliberately spanning a complexity range from simple to complex: 
 
-A critical methodological challenge arises from the experimental design: each
-of the 1,000 structures contributes approximately 50 RFD configurations, so
-the same structure appears in many rows. Splitting data randomly would allow
-structure-specific patterns---eigenfrequency, mass distribution, stiffness
-profile---to appear in both training and validation folds, artificially
-inflating apparent generalization. To prevent this data leakage,
-generalization is assessed with five-fold GroupKFold
-cross-validation \citep{Kazemi2022}, with groups defined by structure
-identifier: all configurations of a given structure are always assigned to
-the same fold, ensuring the model is evaluated on structures it has never
-seen during training. This protocol measures the ability to generalize to new
-structures---the operationally relevant condition for a design-support tool.
+\begin{itemize}
+	\renewcommand{\labelitemi}{---}
+	\item Linear Regression and Ridge Regression \citep{Hastie2009} serve as linear baselines: strong baseline performance would imply that the design space is approximately linear and a response surface could be characterized with far fewer simulations; poor performance reveals genuine nonlinearity---a conclusion that cannot be drawn without the comparison.
+	\item Random Forest \citep{Breiman2001} introduces nonlinearity and interaction effects by averaging $n = 100$ trees trained on bootstrap replicates of the data.
+	\item XGBoost \citep{Chen2016} builds trees sequentially, each correcting the residuals of its predecessors.
+\end{itemize} 
 
-The two evaluation metrics are the cross-validated Root Mean Square Error
-($\mathrm{RMSE_{CV}}$) and the cross-validated coefficient of determination
-($R^2_{\mathrm{CV}}$), where the subscript stands for cross-validated (CV),
-indicating that both quantities are averaged over the five GroupKFold folds:
+The contrast between these two ensemble strategies provides valuable insight: boosted models (such as XGBoost) tend to outperform when errors exhibit systematic patterns (i.e., when errors are consistent functions of the input variables), suggesting underlying nonlinear relationships in the data. In contrast, bagging-based models (such as Random Forest) demonstrate superior robustness when errors resemble random noise, indicating less structured variability in the input-output relationships.
+
+A critical methodological challenge arises from the experimental design: each of the 1,000 structures contributes approximately 50 RFD configurations, so the same structure appears in many rows. Splitting data randomly would allow structure-specific patterns---eigenfrequency, mass distribution, stiffness profile---to appear in both training and validation folds, artificially inflating apparent generalization. To prevent this data leakage, generalization is assessed with five-fold GroupKFold cross-validation \citep{Kazemi2022}, with groups defined by structure identifier: all configurations of a given structure are always assigned to the same fold, ensuring the model is evaluated on structures it has never seen during training. This protocol measures the ability to generalize to new structures---the operationally relevant condition for a design-support tool.
+
+The two evaluation metrics are the cross-validated Root Mean Square Error ($\mathrm{RMSE_{CV}}$) and the cross-validated coefficient of determination ($R^2_{\mathrm{CV}}$), where the subscript stands for cross-validated (CV), indicating that both quantities are averaged over the five GroupKFold folds:
+
 \begin{equation}
-    \RMSE = \sqrt{\frac{1}{|V|}\sum_{i \in V}\bigl(y_i - \hat{y}_i\bigr)^2},
-    \qquad
-    \Rsq  = 1 - \frac{\sum_{i \in V}(y_i - \hat{y}_i)^2}
-                      {\sum_{i \in V}(y_i - \bar{y})^2},
-    \label{eq:metrics}
+	\RMSE = \sqrt{\frac{1}{|V|}\sum_{i \in V}\bigl(y_i - \hat{y}_i\bigr)^2},
+	\qquad
+	\Rsq  = 1 - \frac{\sum_{i \in V}(y_i - \hat{y}_i)^2}
+	{\sum_{i \in V}(y_i - \bar{y})^2},
+	\label{eq:metrics}
 \end{equation}
-where $V$ is the validation fold, $|V|$ its cardinality, $\hat{y}_i$ are
-out-of-fold predictions, and $\bar{y}$ is the sample mean of $y_i$ over
-$V$. Beyond predictive accuracy, feature importance from XGBoost---measured
-as the mean decrease in impurity (MDI) aggregated across all trees---ranks
-the contribution of each design variable to each target, providing
-interpretable design guidance: variables with high importance identify the
-dimensions of the design space where engineering decisions have the greatest
-leverage on seismic performance.
+where $V$ is the validation fold, $|V|$ its cardinality, $\hat{y}_i$ are out-of-fold predictions, and $\bar{y}$ is the sample mean of $y_i$ over $V$. Beyond predictive accuracy, feature importance from XGBoost---measured as the mean decrease in impurity (MDI) aggregated across all trees---ranks the contribution of each design variable to each target, providing interpretable design guidance: variables with high importance identify the dimensions of the design space where engineering decisions have the greatest leverage on seismic performance.
 
 %%═══════════════════════════════════════════════════════════════════════════
 \section{Methodology}
@@ -722,244 +520,149 @@ leverage on seismic performance.
 \subsection{Design of Experiments}
 \label{sec:method:doe}
 
-To obtain conclusions that generalize across the building stock rather than
-for a single structure, 1,000 shear-type frames were generated by a
-randomized Latin Hypercube Sampling \citep[LHS;][]{McKay1979} design,
-implemented via \texttt{scipy.stats.qmc.LatinHypercube}
-\citep{Virtanen2020}. In this variant, the range of each factor is divided
-into $N$ equal-probability strata and exactly one sample is drawn from each
-stratum after a random intra-stratum permutation; the scramble step
-preserves uniform marginal coverage while reducing point clustering and
-improving the low-discrepancy properties of the design without assuming any
-functional form of the response. Each frame is defined by five factors: the
-number of stories $\np \in \{3, 5, 7, 10, 12, 15, 18, 20\}$, chosen to
-span low- to high-rise typologies; the fundamental period
-$T_1 \in [0.3,\,3.0]$\,s; the mean floor mass
-$\bar{m} \in [150,\,350]$\,t; a mass profile (uniform, linearly increasing,
-decreasing, or concentrated at the top); and a stiffness profile (uniform,
-linearly increasing, decreasing, or soft-story at the base). Stiffness
-vectors were calibrated analytically by iteratively scaling $\bm{k}$ until
-the solution of the eigenvalue problem
-$(\bm{K} - \omega_1^2\,\bm{M})\,\bm{\phi}_1 = \bm{0}$ matched the target
-period within $1\,\%$, where $\omega_1 = 2\pi/T_1$ and $\bm{\phi}_1$ is
-the first mode shape.
+To ensure generalizable conclusions across a diverse building stock rather than a single structure, a comprehensive experimental design was implemented using randomized Latin Hypercube Sampling (LHS) \citep{McKay1979}. This approach, implemented via \texttt{scipy.stats.qmc.LatinHypercube} \citep{Virtanen2020}, systematically explores the design space by dividing each factor's range into $N$ equal-probability strata and drawing one sample from each after random permutation. The scramble step enhances the design's low-discrepancy properties while maintaining uniform marginal coverage, avoiding the clustering issues of simple random sampling without assuming any response surface shape.
 
-For each structure, approximately 50 RFD configurations were generated to
-cover the design space of damper placement and friction moment: 10
-deterministic configurations targeting specific coverage levels (single
-floor, all floors, upper half, lower half, and combinations thereof) to
-anchor the extremes of the placement space, and 40 additional configurations
-drawn by LHS over the binary placement space with $\Mf \in [25,\,500]$\,kN$\cdot$m
-to explore the interior. The presence of an RFD at floor $i$ is encoded
-as $b_i \in \{0,1\}$, giving a total damper count
-$\nd = \|\bm{b}\|_0$ and a coverage density $\etad = \nd/\np$. Combined
-with the eight seismic records applied to each configuration, the full
-experimental plan comprises 433,984 time-history simulations.
+The experimental plan comprises 1,000 shear-type frames characterized by five key factors:
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth]{figs/F_LHS_design.png}
-\caption{Latin Hypercube Sampling design used to generate the 1,000
-structural models. Panel (a) illustrates the stratification principle for
-two factors with $n = 12$ strata: unlike simple random sampling (red
-squares), LHS (blue circles) places exactly one point per stratum along
-each axis, guaranteeing uniform marginal coverage. Panel (b) shows the
-actual coverage of the 1,000 generated structures projected onto the three
-continuous design factors ($T_1$, $\bar{m}$, $n_p$); the diagonal panels
-display the marginal histograms, confirming the near-uniform coverage
-achieved by the randomized LHS design.}
-\label{fig:lhs_design}
-\end{figure}
+\begin{enumerate}
+	\item Number of stories $\np \in \{3, 5, 7, 10, 12, 15, 18, 20\}$, spanning low- to high-rise building typologies.
+	\item Fundamental period $T_1 \in [0.3, 3.0]$\,s, covering a wide range of structural flexibility.
+	\item Mean floor mass $\bar{m} \in [150, 350]$\,t, representing typical building mass distributions.
+	\item Mass profile: uniform, linearly increasing, decreasing, or concentrated at the top.
+	\item Stiffness profile: uniform, linearly increasing, decreasing, or soft-story at the base.
+\end{enumerate}
+
+The stiffness vectors were analytically calibrated through an iterative scaling process of $\bm{k}$ until the solution to the eigenvalue problem:
+
+\begin{itemize}
+	\item The eigenvalue problem $(\bm{K} - \omega_1^2\,\bm{M})\,\bm{\phi}_1 = \bm{0}$ is solved to match the target period within 1\% tolerance, where $\omega_1 = 2\pi/T_1$ defines the circular frequency and $\bm{\phi}_1$ is the first mode shape.
+\end{itemize}
+
+For each structure, approximately 50 RFD configurations were generated to comprehensively explore the design space:
+\begin{itemize}
+	\item 10 deterministic configurations targeting specific coverage patterns (single floor, all floors, upper half, lower half, and combinations) to define the extremes of the placement space;
+	\item 40 additional configurations generated via LHS over the binary placement space with friction moments $\Mf \in [25, 500]$\,kN$\cdot$m to explore the interior of the design space.
+\end{itemize}
+
+The presence of an RFD at floor $i$ is represented by a binary indicator $b_i \in \{0,1\}$, yielding a total damper count $\nd = \|\bm{b}\|_0$ and coverage density $\etad = \nd/\np$. The combination of 1,000 structures, approximately 50 configurations per structure, and eight seismic records results in a comprehensive dataset of 433,984 time-history simulations.
 
 \subsection{Structural Models and Dynamic Analysis}
 \label{sec:method:modelo}
 
-Each of the 1,000 frames is modeled as a linear shear frame with lumped
-floor masses, an appropriate simplification for the parametric scope of this
-study: the focus is on the effect of RFD placement and friction moment, not
-on nonlinear structural behavior, so keeping the frame elastic isolates the
-damper's contribution to the response \citep{chopra_dynamics_2015}. Inherent
-structural damping is represented by Rayleigh damping with $\zeta = 3\,\%$,
-calibrated to modes 1 and 3, a level consistent with lightly damped steel
-moment-resisting frames \citep{chopra_dynamics_2015}.
+Each of the 1,000 frames is modeled as a linear shear frame with lumped floor masses, following the approach adopted by \citet{Namorado2022}. By maintaining the frames in the elastic range, the analysis isolates the contribution of RFD placement and friction moment to the seismic response, avoiding confounding effects from structural nonlinearity \citep{chopra_dynamics_2015}. Structural damping is represented through Rayleigh damping with a damping ratio of $\zeta = 3\%$, calibrated to the first and third modes, which is consistent with lightly damped steel moment-resisting frames \citep{chopra_dynamics_2015}.
 
-Seismic excitation is applied through eight historical accelerograms selected
-to span a wide range of frequency content, duration, and geographic origin:
-El~Centro~1940, Kobe~1995, Northridge~1994, Loma~Prieta~1989,
-Zacatula~1997, Jamiltepec~2018, Niltepec~2017, and Trinidad~1983. Using
-multiple records rather than a single design spectrum is essential here: a
-single record would bias the performance ranking of damper configurations
-toward the frequency content of that specific event, while the ensemble of
-eight records---and the subsequent percentile aggregation into $\CR{P10}$,
-$\CR{med}$, and $\CR{P90}$---captures the variability of the seismic
-environment. Each simulation runs with a time step of $\Delta t = 0.01$\,s
-using the NSD-LCP-PSOR integrator described in \cref{sec:theory:nsd}, with
-RFD lever arm $\ha = 0.40$\,m \citep{Mualla2002, Jarrahi2020jbe}.
-All records were applied at their original, unscaled historical intensities;
-no spectral matching or amplitude scaling was performed. As a result, $CR_2$
-quantifies relative performance under the actual intensity of each historical
-event rather than under a uniform hazard level, and cross-record comparisons
-should be interpreted accordingly.
+Seismic excitation is applied through eight historical accelerograms selected to represent a wide range of frequency content, duration, and geographic origin. The records include El~Centro~1940, Kobe~1995, Northridge~1994, Loma~Prieta~1989, Zacatula~1997, Jamiltepec~2018, Niltepec~2017, and Trinidad~1983. The use of multiple records rather than a single design spectrum is crucial for this study, as a single record could bias the performance ranking of damper configurations toward its specific frequency content. By using an ensemble of eight records and aggregating results into $\CR{P10}$, $\CR{med}$, and $\CR{P90}$ percentiles, the analysis captures the variability of the seismic environment. Each simulation is conducted with a time step of $\Delta t = 0.01$\,s using the NSD-LCP-PSOR integrator described in \cref{sec:theory:procedure}, with a fixed RFD lever arm of $\ha = 0.40$\,m \citep{Mualla2002, Jarrahi2020jbe}.
+
+All seismic records are applied at their original, unscaled historical intensities without spectral matching or amplitude scaling. Consequently, the $CR_2$ metric quantifies relative performance under the actual intensity of each historical event rather than a uniform hazard level. This approach ensures that cross-record comparisons reflect the true variability of seismic demands across different earthquake characteristics.
 
 \subsection{Feature Engineering}
 \label{sec:method:features}
 
-The raw design variables $(\np, T_1, \Mf, \nd)$ characterize the structure
-and the number of dampers, but say nothing about \emph{where} the dampers
-are placed---a spatial dimension that may be decisive for performance. To
-bridge this gap, five derived features are constructed to encode placement
-geometry explicitly, and 20 binary indicators $b_1,\ldots,b_{20}$ provide
-the full floor-level detail. Together, these form an input vector of 29
-predictors that gives the model simultaneous access to global structural
-properties, aggregate placement statistics, and fine-grained device location:
+While the raw design variables $(\np, T_1, \Mf, \nd)$ describe the basic structural properties and the number of dampers, they fail to capture the critical spatial dimension of damper placement, which significantly influences performance. To address this limitation, the input feature set is enhanced with:
 
 \begin{enumerate}[label=\textit{\roman*})]
-    \item \textbf{Primary design variables} (4):
-          $\np$, $T_1$, $\Mf$, and $\nd$.
-
-    \item \textbf{Derived features} (5):
-    \begin{itemize}
-        \item $\etad = \nd/\np$: coverage density, the ratio of instrumented
-              floors to total stories---the dominant predictor, as shown in
-              \cref{sec:results:importancia};
-        \item $\bar{p} = \tfrac{1}{\nd}\sum_{i:\,b_i=1} i$: mean damper
-              position (floor index);
-        \item $\tilde{p} = \bar{p}/\np$: normalized mean position, making
-              $\bar{p}$ comparable across buildings of different height;
-        \item $\sigma_p = \mathrm{std}\!\left(\{i:b_i=1\}\right)/\np$:
-              normalized vertical dispersion, distinguishing clustered from
-              spread configurations with the same $\nd$;
-        \item $\tilde{E} = E_{\mathrm{total}}/(\np\times10^6)$: total
-              dissipated energy normalized per floor, a simulation-derived
-              feature that partly reflects the interaction between
-              placement and structural response.
-    \end{itemize}
-
-    \item \textbf{Binary placement indicators} (20):
-          $b_i = 1$ if floor $i$ carries an RFD, zero otherwise; frames
-          with fewer than 20 stories are zero-padded so the input dimension
-          is constant across the dataset.
+	\item Four derived features that explicitly encode the geometric arrangement of dampers:
+	\begin{itemize}
+		\item Coverage density $\etad = \nd/\np$: ratio of instrumented floors to total stories, identified as the dominant predictor in \cref{sec:results:importancia}
+		\item Mean damper position $\bar{p} = \tfrac{1}{\nd}\sum_{i:\,b_i=1} i$: average floor index of damper locations
+		\item Normalized mean position $\tilde{p} = \bar{p}/\np$: makes $\bar{p}$ comparable across buildings of varying heights
+		\item Normalized vertical dispersion $\sigma_p = \mathrm{std}\!\left(\{i:b_i=1\}\right)/\np$: distinguishes between clustered and spread damper configurations
+	\end{itemize}
+	
+	\item Twenty binary indicators $b_1,\ldots,b_{20}$: each $b_i$ equals 1 if floor $i$ carries an RFD, and 0 otherwise. For buildings with fewer than 20 stories, the remaining indicators are zero-padded to maintain consistent input dimensions across the dataset.
 \end{enumerate}
 
+Together, these 28 features (4 primary variables, 4 derived features, and 20 binary indicators) provide the model with comprehensive information about both the global structural properties and the detailed spatial distribution of dampers, enabling effective learning of the complex relationships between design choices and seismic performance.
+
 \subsection{Training and Validation}
-\label{sec:method:entrenamiento}
+\label{sec:method:training}
 
-Following the framework established in \cref{sec:theory:ml}, the three
-targets are predicted by independent models. For each target, all four
-algorithms are trained on the same 29,000-configuration dataset and evaluated
-under the same GroupKFold protocol, making comparisons between models
-directly meaningful. Hyperparameters were fixed at widely used defaults to
-avoid overfitting the model selection process: Random Forest uses $n = 100$
-trees with maximum depth 15; XGBoost uses $n = 100$ estimators, a maximum
-tree depth of 6, and a learning rate of $\eta = 0.1$; Ridge Regression uses
-$\alpha = 1.0$. No tuning was performed on the validation folds, ensuring
-that reported metrics reflect genuine out-of-sample performance.
+Following the framework established in \cref{sec:theory:ml}, separate models are trained for each of the three performance targets ($\CR{P10}$, $\CR{med}$, and $\CR{P90}$). All four algorithms are trained on the same dataset of 29,000 configurations and evaluated using the identical GroupKFold cross-validation protocol, ensuring fair and direct comparison of model performances. To maintain objectivity and avoid overfitting during model selection, hyperparameters were fixed to widely accepted default values:
+\begin{itemize}
+	\renewcommand{\labelitemi}{---}
+	\item Random Forest: 100 trees with maximum depth of 15.
+	\item XGBoost: 100 estimators, maximum tree depth of 6, and learning rate $\eta = 0.1$.
+	\item Ridge Regression: regularization parameter $\alpha = 1.0$.
+\end{itemize}
 
-Feature importance was extracted from the trained XGBoost model using the
-mean decrease in impurity (MDI) criterion: at each internal split of each
-tree, the improvement in MSE weighted by the number of samples reaching that
-node is attributed to the splitting feature, and these values are averaged
-across all 100 trees. Because MDI can be influenced by high-cardinality
-features, the binary placement indicators $b_i$ are each relatively sparse;
-their individual importances are reported alongside the derived aggregates
-($\etad$, $\bar{p}$, $\sigma_p$) to allow comparison between floor-level
-detail and summary statistics. The ranking is computed separately for each
-target, exposing the differences in variable relevance across seismic
-percentiles discussed in \cref{sec:results:importancia}.
+No hyperparameter tuning was performed on the validation folds, ensuring that the reported metrics genuinely reflect out-of-sample performance.
+
+Feature importance is assessed using the MDI criterion from the trained XGBoost models. For each internal node in each tree, the improvement in MSE, weighted by the number of samples reaching that node, is attributed to the feature used for splitting. These importance values are then averaged across all 100 trees in the ensemble. While MDI can be sensitive to high-cardinality features, the binary placement indicators ($b_i$) are relatively sparse in this dataset. Therefore, their individual importances are reported alongside the derived aggregate features ($\etad$, $\bar{p}$, $\sigma_p$) to facilitate comparison between detailed floor-level information and summary statistics. The feature importance rankings are computed separately for each target ($CR_2$ percentile), revealing how the relevance of design variables varies across different seismic scenarios, as discussed in \cref{sec:results:importancia}.
 
 %%═══════════════════════════════════════════════════════════════════════════
 \section{Results}
 \label{sec:results}
-%%═══════════════════════════════════════════════════════════════════════════
 
 \subsection{Predictive Performance of the ML Models}
-\label{sec:results:desempenio}
+\label{sec:results:performance}
 
-The central question at this stage is whether the seismic performance of RFD
-configurations can be predicted accurately enough to serve as a surrogate for
-simulation, and whether the design space is linear or fundamentally nonlinear.
-\Cref{tab:desempenio} reports the cross-validated $\RMSE$ and $\Rsq$ for each
-model–target combination, and the answer to both questions is unambiguous.
-Ensemble methods outperform linear baselines by a wide margin: XGBoost reduces
-$\RMSE$ by 49\,\% relative to Ridge for $\CR{med}$ and by 40\,\% for
-$\CR{P10}$, achieving $\Rsq = 0.920$ and $\Rsq = 0.933$, respectively
-(\cref{fig:comparacion_modelos}). This performance gap is not a modeling
-artifact---it is a direct signal that the relationship between design variables
-and seismic performance is genuinely nonlinear, with interaction effects that
-no linear model can capture.
+The primary objective of this analysis is to determine whether machine learning models can accurately predict the seismic performance of RFD configurations, and whether the underlying relationships are linear or inherently nonlinear. \Cref{tab:desempenio} presents the cross-validated performance metrics for each model-target combination, providing clear evidence on both counts.
 
 \begin{table}[h!]
-\centering
-\caption{Cross-validated RMSE and $R^2$ by model and target variable.
-         Five-fold GroupKFold, grouped by structure identifier.}
-\label{tab:desempenio}
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lcccccc}
-\toprule
-& \multicolumn{2}{c}{$\CR{med}$}
-& \multicolumn{2}{c}{$\CR{P10}$}
-& \multicolumn{2}{c}{$\CR{P90}$} \\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
-Model & $\RMSE$ & $\Rsq$ & $\RMSE$ & $\Rsq$ & $\RMSE$ & $\Rsq$ \\
-\midrule
-Linear Regression & 0.1274 & 0.695 & 0.1267 & 0.812 & 0.1838 & 0.435 \\
-Ridge             & 0.1274 & 0.695 & 0.1268 & 0.812 & 0.1838 & 0.435 \\
-Random Forest     & 0.0681 & 0.913 & 0.0785 & 0.928 & 0.0981 & \textbf{0.839} \\
-XGBoost           & \textbf{0.0652} & \textbf{0.920} & \textbf{0.0755} & \textbf{0.933} & 0.0984 & 0.838 \\
-\bottomrule
-\end{tabular}
+	\centering
+	\caption{Cross-validated $\RMSE$ and $\Rsq$ by model and target variable (mean $\pm$ std over 5 GroupKFold folds, grouped by structure identifier). Bold indicates the best ensemble per target.}
+	\label{tab:desempenio}
+	\resizebox{\linewidth}{!}{%
+		\setlength{\tabcolsep}{5pt}
+		\begin{tabular}{lcccccc}
+			\toprule
+			& \multicolumn{2}{c}{$\CR{med}$}
+			& \multicolumn{2}{c}{$\CR{P10}$}
+			& \multicolumn{2}{c}{$\CR{P90}$} \\
+			\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+			Model
+			& $\RMSE \pm \sigma$ & $\Rsq \pm \sigma$
+			& $\RMSE \pm \sigma$ & $\Rsq \pm \sigma$
+			& $\RMSE \pm \sigma$ & $\Rsq \pm \sigma$ \\
+			\midrule
+			Linear Regression
+			& $0.139 \pm 0.006$ & $0.638 \pm 0.023$
+			& $0.139 \pm 0.003$ & $0.773 \pm 0.012$
+			& $0.202 \pm 0.015$ & $0.311 \pm 0.013$ \\
+			Ridge
+			& $0.139 \pm 0.006$ & $0.638 \pm 0.023$
+			& $0.139 \pm 0.003$ & $0.773 \pm 0.012$
+			& $0.202 \pm 0.015$ & $0.311 \pm 0.013$ \\
+			Random Forest
+			& $0.071 \pm 0.003$ & $0.904 \pm 0.004$
+			& $0.081 \pm 0.002$ & $0.924 \pm 0.003$
+			& $\mathbf{0.112 \pm 0.006}$ & $\mathbf{0.786 \pm 0.016}$ \\
+			XGBoost
+			& $\mathbf{0.070 \pm 0.002}$ & $\mathbf{0.907 \pm 0.003}$
+			& $\mathbf{0.079 \pm 0.001}$ & $\mathbf{0.927 \pm 0.002}$
+			& $0.113 \pm 0.004$ & $0.783 \pm 0.019$ \\
+			\bottomrule
+		\end{tabular}%
+	}% end resizebox
 \end{table}
 
+The results demonstrate a clear superiority of ensemble methods over linear baselines. XGBoost achieves a 49\% reduction in $\RMSE$ relative to Ridge Regression for $\CR{med}$ and a 43\% reduction for $\CR{P10}$, with $\Rsq$ values of 0.907 and 0.927 respectively (\cref{fig:comparacion_modelos}). This substantial performance gap indicates that the relationship between design variables and seismic performance is fundamentally nonlinear, with complex interaction effects that linear models cannot capture.
+
 \begin{figure}[htbp]
-\centering
-\includegraphics[width=0.85\linewidth]{figs/F1_model_comparison_rmse.png}
-\caption{Cross-validated $\RMSE$ comparison across models and target
-variables. Ensemble models achieve approximately half the error of the
-linear baselines.}
-\label{fig:comparacion_modelos}
+	\centering
+	\includegraphics[width=1.0\linewidth]{figs/F1_model_comparison_rmse.png}
+	\caption{Cross-validated $\RMSE$ comparison across models and target variables. Ensemble models achieve approximately half the error of the linear baselines.}
+	\label{fig:comparacion_modelos}
 \end{figure}
 
-The degree of nonlinearity, however, is not uniform across the three targets.
-For $\CR{P10}$---the favorable seismic scenario---linear models already reach
-$\Rsq = 0.81$, suggesting that under moderate excitation the dominant
-dependencies are approximately monotonic and the design space is relatively
-smooth. The conservative scenario $\CR{P90}$ tells a sharply different story:
-linear models collapse to $\Rsq = 0.44$, while Random Forest recovers
-$\Rsq = 0.839$. Under the most demanding records, threshold effects and
-placement interactions become decisive, and only tree-based models are
-flexible enough to learn them. The slight advantage of Random Forest over
-XGBoost for $\CR{P90}$ ($\Rsq = 0.839$ vs.\ $0.838$) is consistent with
-this interpretation: bagging is more robust when the signal is partially
-obscured by high-energy, record-specific variability.
+However, the degree of nonlinearity varies across the three performance targets. For $\CR{P10}$ (favorable scenario), linear models already achieve $\Rsq = 0.77$, suggesting that under moderate seismic excitation, the dominant relationships are approximately linear. In contrast, the conservative $\CR{P90}$ scenario reveals a dramatically different picture: linear models perform poorly ($\Rsq = 0.31$), while Random Forest achieves $\Rsq = 0.786$. This indicates that under severe seismic conditions, threshold effects and complex interactions between damper placement and structural response become critical, requiring the flexibility of tree-based models to capture these relationships. The slight advantage of Random Forest over XGBoost for $\CR{P90}$ ($\Rsq = 0.786$ vs. $0.783$) aligns with the expectation that bagging is more robust when high-energy, record-specific variability partially obscures the underlying signal.
 
-\Cref{fig:pred_vs_actual} confirms that XGBoost predictions are unbiased
-across the full range of $CR_2$: out-of-fold points track the identity line
-without systematic deviation. The only region of elevated residuals is
-$CR_2 > 1.8$, which corresponds exclusively to low-rise frames
-($\np \leq 5$). In these structures, each damper affects a larger fraction
-of the lateral system and the response is more sensitive to small parameter
-variations---a regime that is inherently harder to predict but also represents
-configurations of limited practical interest, since high $CR_2$ values indicate
-poor damper effectiveness regardless of the model.
+\Cref{fig:pred_vs_actual} demonstrates that XGBoost predictions remain unbiased across the full range of $CR_2$ values. The only region with elevated residuals corresponds to $CR_2 > 1.8$, which occurs exclusively in low-rise frames ($\np \leq 5$). In these structures, each damper affects a larger fraction of the lateral system, making the response more sensitive to small parameter variations. This regime is inherently harder to predict but represents configurations of limited practical interest, as high $CR_2$ values indicate poor damper effectiveness regardless of the model.
+
+Figure~\ref{fig:residuales} shows XGBoost's out-of-fold residual distributions for the three $CR_2$ targets. The zero-centered errors (dashed line) and normal distributions (solid curves) confirm unbiased, reliable predictions across all seismic scenarios. Distribution widths reflect varying precision levels for each performance target.
 
 \begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth]{figs/F2_predicted_vs_actual_oof.png}
-\caption{Out-of-fold performance of the XGBoost model for the typical seismic
-scenario ($\CR{med}$, $\Rsq = 0.92$, $\RMSE = 0.065$). The left panel shows
-predicted versus observed values, colored by number of stories~$\np$; the
-right panel shows residuals versus predicted values, with $\pm\RMSE$ reference
-bands.}
-\label{fig:pred_vs_actual}
+	\centering
+	\includegraphics[width=1.0\linewidth]{figs/F2_predicted_vs_actual_oof.png}
+	\caption{Out-of-fold performance of the XGBoost model for the typical seismic scenario ($\CR{med}$, $\Rsq = 0.907$, $\RMSE = 0.070$). Left: predicted vs. observed values, colored by number of stories $\np$; right: residuals vs. predicted values with $\pm\RMSE$ reference bands.}
+	\label{fig:pred_vs_actual}
 \end{figure}
 
 \begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth]{figs/F3_residual_distributions.png}
-\caption{Residual distributions (out-of-fold, XGBoost) for the three $CR_2$
-targets. Dashed line: zero mean; solid curve: normal fit.}
-\label{fig:residuales}
+	\centering
+	\includegraphics[width=1.0\linewidth]{figs/F3_residual_distributions.png}
+	\caption{Residual distributions (out-of-fold, XGBoost) for the three $CR_2$ targets. Dashed line: zero mean; solid curve: normal fit.}
+	\label{fig:residuales}
 \end{figure}
 
 \subsection{Feature Importance and Variable Hierarchy}
@@ -969,43 +672,32 @@ Understanding which design variables govern seismic performance is as
 important as prediction accuracy: it translates a black-box model into
 actionable engineering guidance. \Cref{fig:importancia} shows the 12 most
 important predictors for each target according to the XGBoost MDI ranking.
-The result is consistent and striking---coverage density $\etad$ ranks first
-across all three scenarios, with a Pearson correlation of $\rho = -0.73$
-with $\CR{med}$, far above the raw device count $\nd$ ($\rho = -0.45$).
-This separation is meaningful: two structures with the same number of dampers
-but different heights have very different $\etad$, and the one with higher
-coverage consistently performs better. The MDI ranking captures this
-nonlinear interaction directly, whereas a simple correlation analysis of
-$\nd$ would have missed it.
+For the typical and favorable scenarios, coverage density $\etad$ ranks first
+in both $\CR{med}$ (MDI~=~0.670) and $\CR{P10}$ (MDI~=~0.766): higher
+coverage density consistently reduces $CR_2$, confirming it as the dominant
+design lever.
 
-Although dissipated energy $\tilde{E}$ achieves a similar Pearson correlation
-($\rho = -0.70$), XGBoost assigns it a lower rank than $\etad$ across all
-targets. This is expected: $\tilde{E}$ is itself a product of the simulation
-and therefore partially encodes the structural response rather than being an
-independent design input. Its high correlation is informative, but using it
-as a predictor in a design context requires first running the simulation---
-precisely what the surrogate model is meant to avoid. $\etad$, by contrast,
-is known at the design stage. Vertical dispersion $\sigma_p$ ($\rho = -0.54$)
-ranks third, reflecting the well-established finding that distributing devices
-uniformly along the height promotes more homogeneous inter-story dissipation,
-with the lower floors being particularly effective given their larger drift
-demands \citep{aydin_simple_2013, moghaddam_optimal_2022,
-miguel_simultaneous_2016}. Friction moment $\Mf$ shows weak marginal
-correlation ($\rho = -0.19$) but interacts significantly with $\etad$, as
-discussed in \cref{sec:results:interaccion}.
+The binary placement indicator for Floor~1 (MDI~=~0.056) ranks second for
+$\CR{med}$, reflecting the well-established finding that lower floors are
+particularly effective given their larger inter-story drift demands
+\citep{aydin_simple_2013, moghaddam_optimal_2022,
+miguel_simultaneous_2016}. Friction moment $\Mf$ ranks third (MDI~=~0.052)
+but interacts significantly with $\etad$, as discussed in
+\cref{sec:results:interaccion}.
 
-The importance hierarchy shifts in a revealing way for the conservative
-scenario $\CR{P90}$: $\etad$ drops to fourth place, displaced by the binary
-placement indicators for floors~1 and~2 and by frame height $\np$. Under the
-most demanding records, global coverage is a necessary but insufficient
-condition for good performance---the precise positioning of dampers at the
-critical lower levels becomes the deciding factor. This shift has a direct
-design implication: a conservative design strategy should prioritize lower
-floors before adding coverage to upper ones.
+The importance hierarchy shifts substantially for the conservative scenario
+$\CR{P90}$: $\etad$ drops to second place (MDI~=~0.111), displaced by the raw
+damper count $\nd$ (MDI~=~0.311), while frame height $\np$ rises to third
+(MDI~=~0.102). Under the most demanding records, the total number of devices
+and the structural height become the primary governing factors, rather than
+the normalized coverage fraction alone. This shift has a direct design
+implication: for tall buildings under severe seismic demand, maximizing device
+count proportional to height is more critical than optimizing placement
+geometry.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth]{figs/F4_feature_importance_3targets.png}
+\includegraphics[width=1.0\linewidth]{figs/F4_feature_importance_3targets.png}
 \caption{Ranked feature importance of the XGBoost model for each of the three
 design targets. The top-12 predictors are shown per scenario; horizontal scales
 are independent across panels and should be compared by rank rather than by
@@ -1031,6 +723,17 @@ potential. The within-structure curves (\cref{fig:curvas_internas}) confirm
 that this pattern is consistent across individual structures, not just at the
 group level.
 
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=\linewidth]{figs/F5_diminishing_returns.png}
+	\caption{Diminishing returns in seismic performance as a function of coverage
+		density $\etad = \nd/\np$, stratified by building height. Each curve shows
+		the best achievable $\CR{med}$ (minimum over all configurations at that
+		density), with the shaded band representing the interquartile range (IQR)
+		across structures in each height group.}
+	\label{fig:decreciente}
+\end{figure}
+
 A potential confound in this analysis is that structures with higher $\etad$
 may also differ systematically in $\Mf$, placement geometry, or building
 height, so that the observed relationship reflects those variables rather than
@@ -1047,17 +750,6 @@ low-intensity spectral content of this record reduces inter-story drift demand
 to a level where placement and per-device friction capacity recover importance
 relative to global coverage---a physical result consistent with the role of
 $\etad$ as a demand-driven variable.
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth]{figs/F5_diminishing_returns.png}
-\caption{Diminishing returns in seismic performance as a function of coverage
-density $\etad = \nd/\np$, stratified by building height. Each curve shows
-the best achievable $\CR{med}$ (minimum over all configurations at that
-density), with the shaded band representing the interquartile range (IQR)
-across structures in each height group.}
-\label{fig:decreciente}
-\end{figure}
 
 \begin{figure}[htbp]
 \centering
@@ -1114,36 +806,37 @@ typical and conservative scenarios lead to very different recommendations,
 the designer would face an unresolvable trade-off between efficiency and
 safety. \Cref{fig:convergencia} shows that this is not the case.
 
-For 63.5\,\% of the 1,000 structures, the optimal $\nd$ is identical under
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=\linewidth]{figs/F8_convergence_extended.png}
+	\caption{Stability of the optimal damper count $\nd$ across seismic scenarios
+		for 1{,}000 structures. Each point compares the optimal $\nd$ under the
+		typical (median) and conservative (P90) scenarios; points on the diagonal
+		indicate full agreement (67.9\,\% of structures), and color encodes
+		building height~$\np$. Among diverging cases the median discrepancy is
+		1.0~device.}
+	\label{fig:convergencia}
+\end{figure}
+
+For 67.9\,\% of the 1,000 structures, the optimal $\nd$ is identical under
 the median and P90 scenarios---the same number of dampers is recommended
 regardless of whether the design is based on typical or severe seismic
-demand. In the remaining 36.5\,\% of structures, the two scenarios disagree
-by an average of only 0.51~stories, meaning the difference is never more
-than one device in practice. Crucially, P90 always recommends a $\nd$ equal
-to or greater than the median recommendation---never fewer dampers. The
-conservative scenario therefore acts as an upper bound on the median design,
-not as an alternative strategy that would require a separate optimization.
+demand. In the remaining 32.1\,\% of structures, the two scenarios disagree
+by a median of one damper: 87.9\,\% of the diverging cases differ by at
+most one device, and the mean discrepancy is 1.0~device. Crucially, P90
+always recommends a $\nd$ equal to or greater than the median
+recommendation---never fewer dampers. The conservative scenario therefore
+acts as an upper bound on the median design, not as an alternative strategy
+that would require a separate optimization.
 
-Agreement rates by building height (\cref{fig:convergencia}, right panel)
-range from 66\,\% for high-rise frames to 76\,\% for mid-rise ones,
-reflecting the fact that in tall buildings the marginal benefit of one
-additional damper is smaller and the two scenarios are more likely to sit on
-opposite sides of the optimum. The practical implication is direct: design
-for the typical scenario first, then check against P90. In most cases no
-change will be required; when it is, adding a single device is sufficient.
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth]{figs/F8_convergence_extended.png}
-\caption{Stability of the optimal damper count $\nd$ across seismic scenarios
-for 1{,}000 structures. The left panel compares the optimal $\nd$ under the
-typical (median) and conservative (P90) scenarios; points on the diagonal
-indicate full agreement, and color encodes building height~$\np$. The right
-panel summarizes the exact agreement rate by height group; the dashed line
-marks the overall agreement rate (63.5\,\%), with a mean discrepancy of
-0.51~stories.}
-\label{fig:convergencia}
-\end{figure}
+Agreement rates by height group are 73\,\% for mid-rise frames (8--15
+stories), 71\,\% for low-rise frames (3--7 stories), and 56\,\% for
+high-rise frames ($\geq$16 stories) — the lower rate in tall buildings
+reflects that the marginal benefit of one additional damper is smaller,
+making the two scenarios more likely to sit on opposite sides of the
+optimum. The practical implication is direct: design for the typical
+scenario first, then verify against P90; in most cases no change will be
+required, and when it is, adding a single device is sufficient.
 
 %%═══════════════════════════════════════════════════════════════════════════
 \section{Discussion}
@@ -1221,8 +914,8 @@ by evaluating each configuration against eight historical accelerograms and
 summarizing performance through P10, median, and P90 statistics, the
 resulting recommendations are inherently robust to uncertainty in ground
 motion selection. The convergence results (\cref{fig:convergencia}) confirm
-this robustness quantitatively---63.5\,\% exact agreement and a mean
-discrepancy of only 0.51~stories between median and P90 recommendations---
+this robustness quantitatively---67.9\,\% exact agreement and a median
+discrepancy of one damper in the remaining cases---
 showing that a single optimization pass against the typical scenario is
 sufficient to identify a design that also performs well under severe demand.
 
@@ -1248,71 +941,26 @@ of devices---an economic optimization layer remains as future work.
 \label{sec:conclusions}
 %%═══════════════════════════════════════════════════════════════════════════
 
-The following main conclusions are drawn from the analysis of
-$\approx$434,000 nonlinear time-history simulations over 1,000 diverse
-structural configurations and eight real seismic records:
+This study presented an integrated framework combining Non-Smooth Dynamics and machine learning to optimize rotational friction dampers in steel moment-resisting frames. The analysis of approximately 434,000 nonlinear time-history simulations across 1,000 diverse structural configurations and eight real seismic records yielded several significant findings.
 
-\begin{enumerate}
+The developed machine learning surrogate models demonstrated high predictive accuracy. XGBoost achieved coefficients of determination ($\Rsq$) of 0.907 and 0.927 for median and 10th-percentile $CR_2$ values, respectively, while Random Forest reached $\Rsq = 0.786$ for the 90th-percentile $CR_2$. Ensemble models reduced prediction error by approximately 49\% compared to linear baselines, quantifying the nonlinear relationship between design parameters and seismic performance.
 
-\item \textbf{ML surrogate model accuracy.}
-XGBoost and Random Forest achieved $\Rsq$ of 0.92--0.93 for $\CR{med}$
-and $\CR{P10}$, and 0.84 for $\CR{P90}$. Ensemble models reduced prediction
-error by $\approx$49\,\% relative to linear baselines, quantifying the
-nonlinear structure of the design--performance relationship.
+A key finding emerged regarding the diminishing returns of damper coverage density. Within-structure analysis revealed that 80\% of the maximum $CR_2$ reduction is achieved at $\etad \approx 0.85$ for mid- and high-rise frames (6-20 stories) and at $\etad \approx 0.95$ for low-rise frames (3-5 stories). These thresholds provide practical cost-effectiveness criteria for RFD deployment. The optimal friction moment $\Mf$ identified through machine learning concentrates in the [300, 460] kN·m range (median 400 kN·m). For coverage densities $\etad \geq 0.75$, the $CR_2$ performance metric shows relative insensitivity to specific $\Mf$ values within the [200, 500] kN·m range, indicating that coverage fraction represents the most critical design parameter.
 
-\item \textbf{Diminishing-returns threshold: $\etad \approx 0.85$.}
-Within-structure analysis reveals that 80\,\% of the maximum $CR_2$ reduction
-is reached at $\etad \approx 0.85$ for mid- and high-rise frames (6--20~stories)
-and at $\etad \approx 0.95$ for low-rise frames (3--5~stories). These
-thresholds provide practical cost-effectiveness criteria for RFD deployment.
-Complementarily, the optimal $\Mf$ identified by ML concentrates in
-[300,\,460]\KM (median 400\KM); for $\etad \geq 0.75$, $CR_2$ is relatively
-insensitive to the specific $\Mf$ value within [200,\,500]\KM, making
-coverage fraction the most critical design parameter.
+The established performance thresholds present an interesting comparison with previous energy-based criteria. While \citet{Jarrahi2020sdee} reported saturation of energy dissipation objectives at $\etad \approx 0.60$ (indicating elimination of structural yielding), the displacement-based $CR_2$ criterion employed in this study finds saturation at $\etad \approx 0.85$. This 25 percentage-point difference reflects the greater sensitivity of $CR_2$ to displacement and acceleration demands that persist beyond the yielding threshold. The two criteria thus describe complementary performance levels: $\etad \geq 0.60$ targets structural damage prevention, while $\etad \geq 0.85$ additionally ensures serviceability by controlling residual displacements and accelerations.
 
-\item \textbf{Comparison with the energy-based threshold of Jarrahi et al.}
-\citet{Jarrahi2020sdee} reported saturation of the energy objective at
-$\etad \approx 0.60$ (structural yielding eliminated). The displacement-based
-criterion here finds saturation at $\etad \approx 0.85$, 25 percentage
-points higher. The difference is explained by the greater sensitivity of
-$CR_2$ to displacement and acceleration demands that persist beyond the
-yielding threshold. The two criteria describe complementary performance
-levels: $\etad \geq 0.60$ targets structural damage prevention;
-$\etad \geq 0.85$ additionally controls serviceability.
+The robustness of the proposed design criteria was demonstrated through cross-scenario analysis. 67.9\% of structures received identical damper count recommendations under both median and 90th-percentile seismic scenarios, with a median discrepancy of only one damper in the remaining cases. This indicates that designs optimized for median seismic conditions provide near-optimal protection across the full variability of the eight-record ensemble.
 
-\item \textbf{Robustness across scenarios.}
-63.5\,\% of structures receive exactly the same $\nd$ recommendation under
-the median and P90 scenarios, with a mean discrepancy of 0.51~stories in the
-remaining cases. A design optimized for the median scenario provides
-near-optimal protection across the full seismic variability of the
-eight-record ensemble.
+Several avenues for future research emerge from this work. Three immediate extensions of the NSD-LCP-PSOR simulation engine are particularly promising. Incorporating soil-structure interaction would enable the foundation compliance to modify the effective input motion and frequency content experienced by the dampers, a critical consideration for soft soils and tall buildings \citep{jarrahi_soil-structure_2022}. Extending the current shear-frame model to three-dimensional frames would capture torsional coupling and bidirectional excitation effects, potentially shifting optimal damper placement patterns for asymmetric buildings. Replacing elastic frame elements with nonlinear formulations would permit simulation of high-intensity scenarios where frame yielding interacts with RFD response, addressing the primary source of epistemic uncertainty in the current results.
 
-\item \textbf{Future work.}
-Three extensions of the NSD-LCP-PSOR engine itself are of immediate interest.
-First, incorporating soil--structure interaction (SSI) into the formulation
-would allow the compliance of the foundation to modify the effective input
-motion and the frequency content seen by the dampers---an effect that can be
-decisive for soft soils and tall buildings. Second, extending the shear-frame
-model to three-dimensional frames would capture torsional coupling and
-bidirectional excitation, which are absent in the current planar idealization
-and may shift the optimal placement patterns for asymmetric buildings. Third,
-replacing the elastic frame elements with nonlinear (inelastic) formulations
-would enable the simulation of high-intensity scenarios where frame yielding
-interacts with the RFD response, which is the primary source of epistemic
-uncertainty in the present results. Beyond the simulation engine, future work
-should address floor-specific $\Mf$ distributions, installation cost
-constraints, broader seismic record suites covering different tectonic
-environments, and integration of the trained surrogate models into an
-interactive design tool.
-
-\end{enumerate}
+Beyond simulation enhancements, future work should explore floor-specific friction moment distributions, installation cost constraints, and broader seismic record suites representing different tectonic environments. The integration of trained surrogate models into interactive design tools represents another valuable direction for practical implementation.
 
 %%═══════════════════════════════════════════════════════════════════════════
 \section*{CRediT Author Contribution Statement}
 
 \textbf{E.~Ponce}: Conceptualization, Methodology, Software, Formal Analysis,
 Investigation, Validation, Data Curation, Visualization, Writing -- Original Draft.
-\textbf{H.~Yañez-Godoy}: Conceptualization, Supervision, Writing -- Review \& Editing.
+\textbf{H.~Yáñez-Godoy}: Conceptualization, Supervision, Writing -- Review \& Editing.
 
 \section*{Declaration of Competing Interests}
 
@@ -1337,11 +985,11 @@ France.
 \section*{Data and Code Availability}
 
 The simulation pipeline (Phases 1--4), the aggregated ML dataset
-($\approx$50,000 configurations), and the LHS random seed are publicly
-available at \url{https://zenodo.org/record/XXXXXXX} (DOI:
-10.5281/zenodo.XXXXXXX). The repository includes all scripts required to
-reproduce the figures and tables reported in this paper. Data will be
-made fully available upon acceptance of the manuscript.
+($\approx$50,000 configurations), seismic records, and the LHS random seed
+are publicly available at
+\url{https://github.com/Tartolas/steel-frames-rfd-optimization}.
+The repository includes all scripts required to reproduce the figures and
+tables reported in this paper.
 
 \section*{Declaration of Generative AI and AI-Assisted Technologies in the
 Writing Process}

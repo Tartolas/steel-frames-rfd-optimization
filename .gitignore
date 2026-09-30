@@ -16,6 +16,28 @@ __pycache__/
 # Jupyter checkpoints
 .ipynb_checkpoints/
 
+# LaTeX auxiliary files
+latex_paper/*.aux
+latex_paper/*.log
+latex_paper/*.out
+latex_paper/*.fls
+latex_paper/*.blg
+latex_paper/*.bbl
+latex_paper/*.tmp*
+latex_paper/pdflatex*.fls
+
 # OS files
 .DS_Store
 Thumbs.db
+
+# PDFs (third-party papers and manuscript builds; see the published article via DOI)
+*.pdf
+*.7z
+
+# LaTeX build artifacts
+latex_paper/*.synctex.gz
+latex_paper/*.fdb_latexmk
+
+# Private: journal review correspondence and personal reading notes
+revision_MLWA_2026-09/
+jarrahi_et_al_2020_rotational_friction_dampers.md
